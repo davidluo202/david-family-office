@@ -39,7 +39,7 @@ function ItemForm({ type, onSave, onCancel, editing }: ItemFormProps) {
   const [category, setCategory] = useState(editing?.category || categories[0].value);
   const [label, setLabel] = useState(editing?.label || '');
   const [value, setValue] = useState(editing?.value?.toString() || '');
-  const [notes, setNotes] = useState(editing?.notes || '');
+  const notes = editing?.notes || '';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

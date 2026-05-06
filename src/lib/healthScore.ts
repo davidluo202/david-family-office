@@ -24,8 +24,19 @@ function calcTotalExpenses(): number {
   return Object.values(monthlyExpenses).reduce((a, b) => a + b, 0);
 }
 
+function safeRatio(numerator: number, denominator: number, fallback = 0): number {
+  if (!Number.isFinite(denominator) || denominator <= 0) return fallback;
+  const result = numerator / denominator;
+  return Number.isFinite(result) ? result : fallback;
+}
+
+function clampScore(score: number, max: number): number {
+  if (!Number.isFinite(score)) return 0;
+  return Math.max(0, Math.min(max, Math.round(score)));
+}
+
 function statusFromRatio(score: number, max: number): 'excellent' | 'good' | 'fair' | 'poor' {
-  const ratio = score / max;
+  const ratio = safeRatio(score, max);
   if (ratio >= 0.85) return 'excellent';
   if (ratio >= 0.65) return 'good';
   if (ratio >= 0.4) return 'fair';
@@ -34,41 +45,29 @@ function statusFromRatio(score: number, max: number): 'excellent' | 'good' | 'fa
 
 export function calculateHealthScore(): { total: number; dimensions: ScoreDimension[] } {
   const totalExpenses = calcTotalExpenses();
+  const totalAssets = calcTotalAssets();
   const cashReserve = assets.cash.value;
-  const emergencyMonths = cashReserve / totalExpenses;
+  const emergencyMonths = safeRatio(cashReserve, totalExpenses);
 
-  // 1. Liquidity (15 pts) - 6+ months = full score
-  const liquidityScore = Math.min(15, Math.round((emergencyMonths / 6) * 15));
+  const liquidityScore = clampScore(safeRatio(emergencyMonths, 6) * 15, 15);
+  const growthScore = totalAssets > 0 ? 8 : 0;
+  const debtToAsset = safeRatio(calcTotalLiabilities(), totalAssets);
+  const debtScore = totalAssets > 0 ? clampScore((1 - debtToAsset) * 10 * 1.2, 10) : 0;
 
-  // 2. Asset Growth YoY (15 pts) - mock 8% growth
-  const yoyGrowth = 0.08;
-  const growthScore = Math.min(15, Math.round((yoyGrowth / 0.1) * 15));
-
-  // 3. Debt Management (10 pts) - debt-to-asset ratio
-  const debtToAsset = calcTotalLiabilities() / calcTotalAssets();
-  const debtScore = Math.min(10, Math.round((1 - debtToAsset) * 10 * 1.2));
-
-  // 4. Investment Diversification (15 pts)
   const inv = assets.investments.breakdown;
   const totalInv = inv ? inv.stocks + inv.bonds + inv.etfs : 0;
-  const stockConcentration = inv ? inv.stocks / totalInv : 1;
-  const divScore = stockConcentration > 0.7 ? 8 : stockConcentration > 0.5 ? 11 : 15;
+  const stockConcentration = inv ? safeRatio(inv.stocks, totalInv, 1) : 1;
+  const divScore = totalInv <= 0 ? 0 : stockConcentration > 0.7 ? 8 : stockConcentration > 0.5 ? 11 : 15;
 
-  // 5. Insurance Coverage (10 pts) - mock: partially covered
-  const insuranceScore = 5;
+  const insuranceScore = assets.insurance.value > 0 ? 5 : 0;
+  const retirementRatio = safeRatio(assets.retirement.value, totalAssets);
+  const taxScore = clampScore(retirementRatio * 40, 10);
 
-  // 6. Tax Efficiency (10 pts) - has retirement accounts, some optimization
-  const retirementRatio = assets.retirement.value / calcTotalAssets();
-  const taxScore = Math.min(10, Math.round(retirementRatio * 40));
-
-  // 7. Retirement Readiness (15 pts)
   const retirementTarget = 3000000;
   const retirementCurrent = assets.retirement.value + assets.investments.value;
-  const retirementProgress = retirementCurrent / retirementTarget;
-  const retirementScore = Math.min(15, Math.round(retirementProgress * 15));
-
-  // 8. Estate Planning (10 pts) - mock: needs work
-  const estateScore = 4;
+  const retirementProgress = safeRatio(retirementCurrent, retirementTarget);
+  const retirementScore = clampScore(retirementProgress * 15, 15);
+  const estateScore = 0;
 
   const dimensions: ScoreDimension[] = [
     { name: 'Liquidity', nameZh: '流动性', maxPoints: 15, score: liquidityScore, status: statusFromRatio(liquidityScore, 15) },
@@ -82,13 +81,12 @@ export function calculateHealthScore(): { total: number; dimensions: ScoreDimens
   ];
 
   const total = dimensions.reduce((sum, d) => sum + d.score, 0);
-
   return { total, dimensions };
 }
 
 export function getEmergencyMonths(): number {
   const totalExpenses = calcTotalExpenses();
-  return Math.round((assets.cash.value / totalExpenses) * 10) / 10;
+  return Math.round(safeRatio(assets.cash.value, totalExpenses) * 10) / 10;
 }
 
 export function getNetWorth(): number {
@@ -110,5 +108,5 @@ export function getMonthlySavings(): number {
 export function getSavingsRate(): number {
   const income = calcTotalIncome();
   const savings = income - calcTotalExpenses();
-  return Math.round((savings / income) * 100);
+  return Math.round(safeRatio(savings, income) * 100);
 }

@@ -12,6 +12,7 @@ const navItems = [
   { href: '/wealth', label: 'Assets & Liabilities', labelZh: '资产负债', icon: '\u{1F4B0}' },
   { href: '/expenses', label: 'Income & Expenses', labelZh: '收支管理', icon: '\u{1F4B3}' },
   { href: '/accounts', label: 'Bank Accounts', labelZh: '银行账户', icon: '\u{1F3E6}' },
+  { href: '/integrations', label: 'Bank & Tax Data', labelZh: '银行/税表接口', icon: '\u{1F50C}' },
   { href: '/goals', label: 'Goals', labelZh: '目标', icon: '\u{1F3AF}' },
   { href: '/advisor', label: 'AI Advisor', labelZh: 'AI 顾问', icon: '\u{1F916}' },
   { href: '/settings', label: 'Settings', labelZh: '设置', icon: '\u2699\uFE0F' },

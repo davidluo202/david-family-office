@@ -20,13 +20,6 @@ const relationLabels: Record<string, string> = {
   other: '其他',
 };
 
-const relationLabelsEn: Record<string, string> = {
-  self: 'Self',
-  spouse: 'Spouse',
-  child: 'Child',
-  parent: 'Parent',
-  other: 'Other',
-};
 
 const jurisdictionFlags: Record<string, string> = {
   US: '\u{1F1FA}\u{1F1F8}',

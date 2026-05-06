@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { loadMembers, saveMembers } from '@/lib/storage';
 import { useAuth } from '@/lib/AuthContext';
 import type { FamilyMember } from '@/lib/types';
-import { DEFAULT_PERSONAL_EXPENSES } from '@/lib/types';
+
 import FamilyMemberCard from '@/components/FamilyMemberCard';
 import MemberForm from '@/components/MemberForm';
 
