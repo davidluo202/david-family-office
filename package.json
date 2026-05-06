@@ -1,6 +1,6 @@
 {
-  "name": "mini-family-office",
-  "version": "0.2.0",
+  "name": "david-family-office",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

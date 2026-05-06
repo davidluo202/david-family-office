@@ -3,9 +3,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadConfig, saveConfig, exportAllData, importAllData, resetAllData } from '@/lib/storage';
-import { simpleHash, clearSession } from '@/lib/auth';
+import { simpleHash, clearSession, loadUsers, approveUser, rejectUser } from '@/lib/auth';
 import { useAuth } from '@/lib/AuthContext';
-import type { FamilyConfig, FamilyData } from '@/lib/types';
+import type { FamilyConfig, FamilyData, AppUser } from '@/lib/types';
 
 export default function SettingsPage() {
   const { session, logout } = useAuth();
@@ -19,11 +19,13 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
+  const [users, setUsers] = useState<AppUser[]>([]);
 
   useEffect(() => {
     const c = loadConfig();
     setConfig(c);
     if (c) setFamilyName(c.familyName);
+    setUsers(loadUsers());
   }, []);
 
   const showMsg = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -93,6 +95,19 @@ export default function SettingsPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleApprove = (userId: string) => {
+    approveUser(userId);
+    setUsers(loadUsers());
+    showMsg('用户已审批');
+  };
+
+  const handleReject = (userId: string) => {
+    if (!confirm('确认拒绝并删除该用户？')) return;
+    rejectUser(userId);
+    setUsers(loadUsers());
+    showMsg('用户已删除');
+  };
+
   const handleReset = () => {
     if (!confirm('确认重置所有数据？此操作不可撤销！\nAre you sure? This cannot be undone!')) return;
     if (!confirm('再次确认：所有家庭数据将被永久删除！\nSecond confirmation: All data will be permanently deleted!')) return;
@@ -160,6 +175,44 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* User Management (Admin only) */}
+      {isAdmin && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">用户管理 / User Management</h3>
+          {users.length === 0 ? (
+            <p className="text-sm text-slate-400">暂无注册用户</p>
+          ) : (
+            <div className="space-y-2">
+              {users.map((u) => (
+                <div key={u.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{u.name || u.email}</p>
+                    <p className="text-xs text-slate-400">{u.email} · {u.role}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {u.status === 'pending' ? (
+                      <>
+                        <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">待审批</span>
+                        <button onClick={() => handleApprove(u.id)}
+                          className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700">
+                          批准
+                        </button>
+                        <button onClick={() => handleReject(u.id)}
+                          className="px-3 py-1.5 text-xs bg-red-100 text-red-600 rounded-lg hover:bg-red-600 hover:text-white">
+                          拒绝
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">已激活</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Data Management */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">数据管理 / Data Management</h3>
@@ -216,7 +269,7 @@ export default function SettingsPage() {
       {/* About */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
         <h3 className="text-lg font-semibold text-slate-800 mb-2">关于 / About</h3>
-        <p className="text-sm text-slate-500">Mini Family Office v0.2.0</p>
+        <p className="text-sm text-slate-500">Mini Family Office v0.3.0</p>
         <p className="text-xs text-slate-400 mt-1">数据存储在浏览器本地 (localStorage)</p>
         <p className="text-xs text-slate-400">Data is stored locally in your browser</p>
       </div>

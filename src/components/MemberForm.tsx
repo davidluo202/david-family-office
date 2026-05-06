@@ -14,6 +14,9 @@ export default function MemberForm({ member, onSave, onCancel }: Props) {
   const isEdit = !!member;
   const [name, setName] = useState(member?.name || '');
   const [nameZh, setNameZh] = useState(member?.nameZh || '');
+  const [phone, setPhone] = useState(member?.phone || '');
+  const [email, setEmail] = useState(member?.email || '');
+  const [avatarUrl, setAvatarUrl] = useState(member?.avatarUrl || '');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>(member?.gender || 'male');
   const [dob, setDob] = useState(member?.dob || '');
   const [relationship, setRelationship] = useState<FamilyMember['relationship']>(member?.relationship || 'self');
@@ -42,6 +45,9 @@ export default function MemberForm({ member, onSave, onCancel }: Props) {
       id: member?.id || crypto.randomUUID(),
       name: name.trim(),
       nameZh: nameZh.trim(),
+      phone: phone.trim() || undefined,
+      email: email.trim() || undefined,
+      avatarUrl: avatarUrl.trim() || undefined,
       gender,
       dob,
       relationship,
@@ -112,6 +118,25 @@ export default function MemberForm({ member, onSave, onCancel }: Props) {
               <option value="career">职业 / Career</option>
               <option value="retirement">退休 / Retirement</option>
             </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Contact Info */}
+      <div className="mb-6">
+        <h4 className="text-sm font-semibold text-blue-600 uppercase tracking-wide mb-3">联系方式 / Contact</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>手机 <span className={subLabelClass}>Phone</span></label>
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} placeholder="+1 (555) 000-0000" />
+          </div>
+          <div>
+            <label className={labelClass}>邮箱 <span className={subLabelClass}>Email</span></label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="name@example.com" />
+          </div>
+          <div className="col-span-2">
+            <label className={labelClass}>头像链接 <span className={subLabelClass}>Avatar URL (optional)</span></label>
+            <input type="url" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} className={inputClass} placeholder="https://example.com/photo.jpg" />
           </div>
         </div>
       </div>

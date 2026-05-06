@@ -23,6 +23,7 @@ export default function AccountsPage() {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showPlaidModal, setShowPlaidModal] = useState(false);
 
   // Form state
   const [institution, setInstitution] = useState('');
@@ -102,7 +103,7 @@ export default function AccountsPage() {
         )}
       </div>
 
-      {/* Plaid Placeholder */}
+      {/* Plaid Connect */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white text-xl">
@@ -111,17 +112,73 @@ export default function AccountsPage() {
           <div className="flex-1">
             <h3 className="text-sm font-semibold text-slate-800">银行账户自动同步 / Bank Account Sync</h3>
             <p className="text-xs text-slate-500 mt-1">
-              Plaid 集成即将推出 - 自动连接您的银行、券商和信用卡账户
+              通过 Plaid 自动连接您的银行、券商和信用卡账户
             </p>
             <p className="text-xs text-slate-400">
-              Plaid integration coming soon - auto-connect your bank, brokerage, and credit card accounts
+              Auto-connect your bank, brokerage, and credit card accounts via Plaid
             </p>
           </div>
-          <button disabled className="px-4 py-2 bg-slate-300 text-white rounded-lg text-sm font-medium cursor-not-allowed">
-            即将推出
+          <button
+            onClick={() => setShowPlaidModal(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors whitespace-nowrap"
+          >
+            Connect with Plaid
           </button>
         </div>
       </div>
+
+      {/* Plaid Modal */}
+      {showPlaidModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-slate-800">Connect with Plaid</h3>
+              <button
+                onClick={() => setShowPlaidModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl"
+              >
+                &#x2715;
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                <span className="text-2xl">&#x1F512;</span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Bank-level Security</p>
+                  <p className="text-xs text-slate-500">256-bit encryption, read-only access</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-100">
+                <span className="text-2xl">&#x1F504;</span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Auto-sync Balances</p>
+                  <p className="text-xs text-slate-500">Daily balance updates from 12,000+ institutions</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl border border-purple-100">
+                <span className="text-2xl">&#x1F4CA;</span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Transaction History</p>
+                  <p className="text-xs text-slate-500">Import and categorize past transactions</p>
+                </div>
+              </div>
+              <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                <p className="text-sm font-semibold text-amber-800 mb-1">Setup Required</p>
+                <p className="text-xs text-amber-700">
+                  Plaid integration requires a Plaid API key. Contact your administrator to complete the setup.
+                  Visit <span className="font-mono">plaid.com/docs</span> to get started.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowPlaidModal(false)}
+              className="w-full mt-6 py-3 bg-slate-100 text-slate-700 rounded-xl font-medium hover:bg-slate-200 transition-colors text-sm"
+            >
+              关闭 / Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tax Document Upload Placeholder */}
       <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
@@ -223,11 +280,11 @@ export default function AccountsPage() {
             <h3 className="text-lg font-semibold text-slate-800">已连接账户 / Connected Accounts</h3>
             <span className="text-lg font-bold text-blue-600">总计: {fmt(totalBalance)}</span>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-x-auto">
             {accounts.map((account) => {
               const typeInfo = accountTypes.find((t) => t.value === account.accountType);
               return (
-                <div key={account.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                <div key={account.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg min-w-[320px]">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
                       {account.institution.slice(0, 2).toUpperCase()}

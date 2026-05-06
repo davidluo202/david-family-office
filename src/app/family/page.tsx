@@ -94,7 +94,7 @@ export default function FamilyPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {members.map((member) => (
               <FamilyMemberCard
                 key={member.id}
@@ -109,7 +109,7 @@ export default function FamilyPage() {
           {members.length > 0 && (
             <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">家庭概况 / Family Summary</h3>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-4 bg-blue-50 rounded-lg">
                   <p className="text-2xl font-bold text-blue-600">{members.length}</p>
                   <p className="text-xs text-slate-500 mt-1">总成员 / Total</p>

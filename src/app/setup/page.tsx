@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
-import { simpleHash } from '@/lib/auth';
+import { simpleHash, registerUser } from '@/lib/auth';
 import { saveConfig, saveMembers } from '@/lib/storage';
 import type { FamilyConfig, FamilyMember } from '@/lib/types';
 import { DEFAULT_PERSONAL_EXPENSES } from '@/lib/types';
@@ -13,8 +13,9 @@ export default function SetupPage() {
   const { login, refreshSetup } = useAuth();
   const [step, setStep] = useState(1);
 
-  // Step 1: Family name + password
+  // Step 1: Family name + admin credentials
   const [familyName, setFamilyName] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [memberPassword, setMemberPassword] = useState('');
@@ -32,6 +33,10 @@ export default function SetupPage() {
     setError('');
     if (!familyName.trim()) {
       setError('请输入家庭名称');
+      return;
+    }
+    if (!adminEmail.trim()) {
+      setError('请输入管理员邮箱');
       return;
     }
     if (adminPassword.length < 4) {
@@ -63,6 +68,9 @@ export default function SetupPage() {
     };
     saveConfig(config);
 
+    // Register admin user
+    registerUser(adminEmail.trim(), adminPassword, yourName.trim() || undefined);
+
     // Save first member
     const member: FamilyMember = {
       id: crypto.randomUUID(),
@@ -87,7 +95,7 @@ export default function SetupPage() {
     saveMembers([member]);
 
     refreshSetup();
-    login('admin');
+    login('admin', adminEmail.trim(), yourName.trim() || undefined);
     router.push('/');
   };
 
@@ -126,6 +134,19 @@ export default function SetupPage() {
                     placeholder="例：张家 / The Zhang Family"
                     className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    管理员邮箱 <span className="text-slate-400 font-normal">/ Admin Email</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={adminEmail}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    placeholder="admin@example.com"
+                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 

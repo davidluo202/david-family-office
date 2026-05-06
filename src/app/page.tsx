@@ -78,7 +78,7 @@ export default function Dashboard() {
       ) : (
         <>
           {/* Key Metrics */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               label="Net Worth"
               labelZh="净资产"
@@ -107,7 +107,7 @@ export default function Dashboard() {
           </div>
 
           {/* Quick Overview Grid */}
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Assets Summary */}
             <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
               <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">资产概况 / Assets</h3>
@@ -191,11 +191,14 @@ export default function Dashboard() {
           {/* Members Overview */}
           <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
             <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">家庭成员 / Family</h3>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {members.map((m) => (
                 <div key={m.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                    {m.avatar}
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
+                    {m.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={m.avatarUrl} alt={m.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    ) : m.avatar}
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-700 truncate">{m.name}</p>

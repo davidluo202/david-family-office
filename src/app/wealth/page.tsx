@@ -36,14 +36,25 @@ interface ItemFormProps {
 
 function ItemForm({ type, onSave, onCancel, editing }: ItemFormProps) {
   const categories = type === 'asset' ? assetCategories : liabilityCategories;
+  const editingAsset = type === 'asset' ? (editing as Asset | null) : null;
   const [category, setCategory] = useState(editing?.category || categories[0].value);
   const [label, setLabel] = useState(editing?.label || '');
   const [value, setValue] = useState(editing?.value?.toString() || '');
-  const notes = editing?.notes || '';
+  const [notes, setNotes] = useState(editing?.notes || '');
+  const [propertyAddress, setPropertyAddress] = useState(editingAsset?.propertyAddress || '');
+  const [zestimate, setZestimate] = useState(editingAsset?.zestimate?.toString() || '');
+  const [toastMsg, setToastMsg] = useState('');
+
+  const isRealEstate = type === 'asset' && category === 'real_estate';
+
+  const handleFetchEstimate = () => {
+    setToastMsg('Coming soon — Zillow Zestimate integration is not yet available.');
+    setTimeout(() => setToastMsg(''), 3000);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const item = {
+    const base = {
       id: editing?.id || crypto.randomUUID(),
       category: category as Asset['category'] & Liability['category'],
       label: label.trim() || categories.find((c) => c.value === category)?.labelZh || category,
@@ -51,22 +62,38 @@ function ItemForm({ type, onSave, onCancel, editing }: ItemFormProps) {
       notes,
       updatedAt: new Date().toISOString(),
     };
-    onSave(item as Asset & Liability);
+    if (type === 'asset') {
+      const assetItem: Asset = {
+        ...base,
+        category: category as Asset['category'],
+        ...(isRealEstate && {
+          propertyAddress: propertyAddress.trim() || undefined,
+          zestimate: zestimate ? parseFloat(zestimate) : undefined,
+        }),
+      };
+      onSave(assetItem);
+    } else {
+      onSave(base as Liability);
+    }
   };
 
+  const inputCls = 'px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+
   return (
-    <form onSubmit={handleSubmit} className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-      <div className="grid grid-cols-4 gap-3">
-        <select value={category} onChange={(e) => setCategory(e.target.value)}
-          className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+    <form onSubmit={handleSubmit} className="bg-blue-50 rounded-xl p-4 border border-blue-100 space-y-3">
+      {toastMsg && (
+        <div className="p-2 bg-amber-50 text-amber-700 text-xs rounded-lg border border-amber-200">{toastMsg}</div>
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
           {categories.map((c) => (
             <option key={c.value} value={c.value}>{c.labelZh} / {c.label}</option>
           ))}
         </select>
         <input type="text" value={label} onChange={(e) => setLabel(e.target.value)}
-          placeholder="名称 / Label" className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          placeholder="名称 / Label" className={inputCls} />
         <input type="number" value={value} onChange={(e) => setValue(e.target.value)}
-          placeholder="金额 / Amount" min="0" step="100" className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+          placeholder="金额 / Amount" min="0" step="100" className={inputCls} required />
         <div className="flex gap-2">
           <button type="submit" className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
             {editing ? '保存' : '添加'}
@@ -76,6 +103,27 @@ function ItemForm({ type, onSave, onCancel, editing }: ItemFormProps) {
           </button>
         </div>
       </div>
+      {/* Real Estate Zillow fields */}
+      {isRealEstate && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-blue-200">
+          <div className="md:col-span-2">
+            <label className="block text-xs font-medium text-slate-600 mb-1">物业地址 / Property Address</label>
+            <input type="text" value={propertyAddress} onChange={(e) => setPropertyAddress(e.target.value)}
+              placeholder="123 Main St, City, State 12345" className={`w-full ${inputCls}`} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Zestimate ($)</label>
+            <div className="flex gap-2">
+              <input type="number" value={zestimate} onChange={(e) => setZestimate(e.target.value)}
+                placeholder="0" min="0" step="1000" className={`flex-1 ${inputCls}`} />
+              <button type="button" onClick={handleFetchEstimate}
+                className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 whitespace-nowrap">
+                Fetch Estimate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }
@@ -147,7 +195,7 @@ export default function WealthPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
           <p className="text-sm text-slate-500">总资产 / Total Assets</p>
           <p className="text-3xl font-bold text-green-600 mt-1">{fmt(totalAssets)}</p>
@@ -173,7 +221,7 @@ export default function WealthPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Assets */}
         <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
           <div className="flex justify-between items-center mb-4">
@@ -196,7 +244,7 @@ export default function WealthPage() {
             </div>
           )}
           {assets.length > 0 ? (
-            <table className="w-full">
+            <div className="overflow-x-auto"><table className="w-full min-w-[280px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-left text-xs text-slate-500 font-medium pb-2">类别</th>
@@ -225,7 +273,7 @@ export default function WealthPage() {
                   {isAdmin && <td />}
                 </tr>
               </tbody>
-            </table>
+            </table></div>
           ) : (
             <div className="text-center py-8">
               <p className="text-sm text-slate-400">暂无资产数据</p>
@@ -256,7 +304,7 @@ export default function WealthPage() {
             </div>
           )}
           {liabilities.length > 0 ? (
-            <table className="w-full">
+            <div className="overflow-x-auto"><table className="w-full min-w-[280px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-left text-xs text-slate-500 font-medium pb-2">类别</th>
@@ -285,7 +333,7 @@ export default function WealthPage() {
                   {isAdmin && <td />}
                 </tr>
               </tbody>
-            </table>
+            </table></div>
           ) : (
             <div className="text-center py-8">
               <p className="text-sm text-slate-400">暂无负债数据</p>

@@ -1,8 +1,9 @@
-// Simple password-based auth for Mini Family Office
-import type { AuthSession, UserRole } from './types';
+// Email-based auth for Mini Family Office
+import type { AuthSession, UserRole, AppUser } from './types';
 
 const SESSION_KEY = 'mfo_session';
 const CONFIG_KEY = 'mfo_config';
+const USERS_KEY = 'mfo_users';
 
 // Simple hash function (not cryptographic, but fine for a family app)
 export function simpleHash(str: string): string {
@@ -16,6 +17,57 @@ export function simpleHash(str: string): string {
   return 'mfo_' + Math.abs(hash).toString(16).padStart(8, '0');
 }
 
+// User management
+export function loadUsers(): AppUser[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(USERS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as AppUser[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveUsers(users: AppUser[]): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+export function getUserByEmail(email: string): AppUser | null {
+  const users = loadUsers();
+  return users.find((u) => u.email.toLowerCase() === email.toLowerCase()) || null;
+}
+
+export function registerUser(email: string, password: string, name?: string): AppUser {
+  const users = loadUsers();
+  const isFirst = users.length === 0;
+  const user: AppUser = {
+    id: crypto.randomUUID(),
+    email: email.trim().toLowerCase(),
+    passwordHash: simpleHash(password),
+    role: isFirst ? 'admin' : 'member',
+    status: isFirst ? 'active' : 'pending',
+    name,
+    createdAt: new Date().toISOString(),
+  };
+  saveUsers([...users, user]);
+  return user;
+}
+
+export function approveUser(userId: string): void {
+  const users = loadUsers();
+  const updated = users.map((u) =>
+    u.id === userId ? { ...u, status: 'active' as const } : u
+  );
+  saveUsers(updated);
+}
+
+export function rejectUser(userId: string): void {
+  const users = loadUsers();
+  saveUsers(users.filter((u) => u.id !== userId));
+}
+
 export function getSession(): AuthSession | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -27,9 +79,10 @@ export function getSession(): AuthSession | null {
   }
 }
 
-export function setSession(role: UserRole, memberName?: string): void {
+export function setSession(role: UserRole, email: string, memberName?: string): void {
   const session: AuthSession = {
     role,
+    email,
     memberName,
     loginTime: Date.now(),
   };
@@ -52,6 +105,15 @@ export function isSetupComplete(): boolean {
   }
 }
 
+export function verifyEmailLogin(email: string, password: string): AppUser | null {
+  const user = getUserByEmail(email);
+  if (!user) return null;
+  if (user.passwordHash !== simpleHash(password)) return null;
+  if (user.status !== 'active') return null;
+  return user;
+}
+
+// Legacy password verify (kept for backward compat during setup)
 export function verifyPassword(input: string, role: UserRole): boolean {
   try {
     const raw = localStorage.getItem(CONFIG_KEY);
@@ -61,7 +123,6 @@ export function verifyPassword(input: string, role: UserRole): boolean {
     if (role === 'admin') {
       return inputHash === config.passwordHash;
     } else {
-      // Member can use either the member password or admin password
       return inputHash === (config.memberPasswordHash || config.passwordHash);
     }
   } catch {

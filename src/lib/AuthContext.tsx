@@ -8,7 +8,7 @@ interface AuthContextValue {
   session: AuthSession | null;
   setupDone: boolean;
   loading: boolean;
-  login: (role: UserRole, memberName?: string) => void;
+  login: (role: UserRole, email: string, memberName?: string) => void;
   logout: () => void;
   refreshSetup: () => void;
 }
@@ -33,8 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-  const login = useCallback((role: UserRole, memberName?: string) => {
-    setSession(role, memberName);
+  const login = useCallback((role: UserRole, email: string, memberName?: string) => {
+    setSession(role, email, memberName);
     setSessionState(getSession());
   }, []);
 

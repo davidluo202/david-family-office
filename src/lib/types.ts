@@ -1,9 +1,21 @@
 // Core types for Mini Family Office
 
 export type UserRole = 'admin' | 'member';
+export type UserStatus = 'active' | 'pending';
+
+export interface AppUser {
+  id: string;
+  email: string;
+  passwordHash: string;
+  role: UserRole;
+  status: UserStatus;
+  name?: string;
+  createdAt: string;
+}
 
 export interface AuthSession {
   role: UserRole;
+  email: string;
   memberName?: string;
   loginTime: number;
 }
@@ -30,6 +42,10 @@ export interface FamilyMember {
   gender: 'male' | 'female' | 'other';
   dob: string;
   relationship: 'self' | 'spouse' | 'child' | 'parent' | 'other';
+  // Contact
+  phone?: string;
+  email?: string;
+  avatarUrl?: string;
   // Identity
   jurisdiction: 'US' | 'HK' | 'both' | 'other';
   citizenship: string;
@@ -67,6 +83,9 @@ export interface Asset {
   label: string;
   value: number;
   notes: string;
+  // Real estate specific
+  propertyAddress?: string;
+  zestimate?: number;
   updatedAt: string;
 }
 

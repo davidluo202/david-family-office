@@ -3,31 +3,70 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
-import { verifyPassword, isSetupComplete } from '@/lib/auth';
-import type { UserRole } from '@/lib/types';
+import { verifyEmailLogin, isSetupComplete, registerUser, getUserByEmail } from '@/lib/auth';
 import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, setupDone } = useAuth();
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('admin');
+  const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setInfo('');
 
     if (!isSetupComplete()) {
       router.push('/setup');
       return;
     }
 
-    if (verifyPassword(password, role)) {
-      login(role);
+    const user = verifyEmailLogin(email.trim(), password);
+    if (user) {
+      login(user.role, user.email, user.name);
       router.push('/');
     } else {
-      setError('密码错误 / Incorrect password');
+      const found = getUserByEmail(email.trim());
+      if (found && found.status === 'pending') {
+        setError('账户待管理员审批 / Account pending admin approval');
+      } else {
+        setError('邮箱或密码错误 / Incorrect email or password');
+      }
+    }
+  };
+
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setInfo('');
+
+    if (!email.trim() || !password) {
+      setError('请填写邮箱和密码');
+      return;
+    }
+    if (password.length < 4) {
+      setError('密码至少4位');
+      return;
+    }
+
+    if (getUserByEmail(email.trim())) {
+      setError('该邮箱已注册 / Email already registered');
+      return;
+    }
+
+    const user = registerUser(email.trim(), password, name.trim() || undefined);
+    if (user.status === 'active') {
+      login(user.role, user.email, user.name);
+      router.push('/');
+    } else {
+      setInfo('注册成功！等待管理员审批后即可登录。\nRegistered! Waiting for admin approval.');
+      setMode('login');
+      setPassword('');
     }
   };
 
@@ -42,77 +81,134 @@ export default function LoginPage() {
           <p className="text-blue-300 mt-2 text-sm">家庭财务管理中心</p>
         </div>
 
-        <form onSubmit={handleLogin} className="bg-white rounded-2xl p-8 shadow-2xl">
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              身份 / Role
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setRole('admin')}
-                className={`p-3 rounded-xl border-2 text-center transition-all ${
-                  role === 'admin'
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                }`}
-              >
-                <span className="block text-lg mb-1">&#x1f511;</span>
-                <span className="text-sm font-medium">管理员</span>
-                <span className="block text-xs text-slate-400">Admin</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('member')}
-                className={`p-3 rounded-xl border-2 text-center transition-all ${
-                  role === 'member'
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                }`}
-              >
-                <span className="block text-lg mb-1">&#x1f464;</span>
-                <span className="text-sm font-medium">家庭成员</span>
-                <span className="block text-xs text-slate-400">Member</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              密码 / Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="输入密码"
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              autoFocus
-            />
-          </div>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
-          >
-            登录 / Login
-          </button>
-
-          {!setupDone && (
-            <Link
-              href="/setup"
-              className="block mt-4 text-center text-sm text-blue-600 hover:text-blue-700"
+        <div className="bg-white rounded-2xl p-8 shadow-2xl">
+          {/* Tab switch */}
+          <div className="flex mb-6 border border-slate-200 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => { setMode('login'); setError(''); setInfo(''); }}
+              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                mode === 'login' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'
+              }`}
             >
-              首次使用？设置家庭 / First time? Set up your family
-            </Link>
+              登录 / Login
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('register'); setError(''); setInfo(''); }}
+              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                mode === 'register' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              注册 / Register
+            </button>
+          </div>
+
+          {info && (
+            <div className="mb-4 p-3 bg-green-50 text-green-700 text-sm rounded-lg">{info}</div>
           )}
-        </form>
+
+          {mode === 'login' ? (
+            <form onSubmit={handleLogin}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  邮箱 / Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  autoFocus
+                  required
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  密码 / Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="输入密码"
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg">{error}</div>
+              )}
+              <button
+                type="submit"
+                className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
+              >
+                登录 / Login
+              </button>
+              {!setupDone && (
+                <Link
+                  href="/setup"
+                  className="block mt-4 text-center text-sm text-blue-600 hover:text-blue-700"
+                >
+                  首次使用？设置家庭 / First time? Set up your family
+                </Link>
+              )}
+            </form>
+          ) : (
+            <form onSubmit={handleRegister}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  姓名 / Name <span className="text-slate-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="John Smith"
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  autoFocus
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  邮箱 / Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  密码 / Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="至少4位"
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+                <p className="text-xs text-slate-400 mt-1">首个注册账户自动成为管理员 / First registrant becomes admin</p>
+              </div>
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg">{error}</div>
+              )}
+              <button
+                type="submit"
+                className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
+              >
+                注册 / Register
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

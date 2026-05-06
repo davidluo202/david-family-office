@@ -48,8 +48,13 @@ export default function FamilyMemberCard({ member, isAdmin, onEdit, onDelete }: 
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
       <div className="flex items-start gap-4">
-        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-          {member.avatar}
+        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden">
+          {member.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={member.avatarUrl} alt={member.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          ) : (
+            member.avatar
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -108,6 +113,18 @@ export default function FamilyMemberCard({ member, isAdmin, onEdit, onDelete }: 
           <div className="flex items-center justify-between text-sm">
             <span className="text-slate-500">个人月度开销 / Personal</span>
             <span className="text-red-500 font-medium">${totalPersonalExpenses.toLocaleString()}</span>
+          </div>
+        )}
+        {member.phone && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-500">手机 / Phone</span>
+            <span className="text-slate-700 font-medium">{member.phone}</span>
+          </div>
+        )}
+        {member.email && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-500">邮箱 / Email</span>
+            <span className="text-slate-700 font-medium truncate max-w-[160px]">{member.email}</span>
           </div>
         )}
       </div>
