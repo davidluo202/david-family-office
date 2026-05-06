@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
-import TopBar from "@/components/TopBar";
+import { AuthProvider } from "@/lib/AuthContext";
+import AppShell from "@/components/AppShell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DFO - David Family Office",
-  description: "Family Command Center - Phase 1 MVP",
+  title: "MFO - Mini Family Office",
+  description: "Family Financial Management Center",
 };
 
 export default function RootLayout({
@@ -30,11 +30,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-[#f8fafc]">
-        <Sidebar />
-        <div className="ml-60">
-          <TopBar />
-          <main className="p-6">{children}</main>
-        </div>
+        <AuthProvider>
+          <AppShell>{children}</AppShell>
+        </AuthProvider>
       </body>
     </html>
   );

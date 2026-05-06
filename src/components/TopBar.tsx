@@ -1,6 +1,9 @@
 'use client';
 
+import { useAuth } from '@/lib/AuthContext';
+
 export default function TopBar() {
+  const { session } = useAuth();
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', {
     weekday: 'long',
@@ -16,9 +19,9 @@ export default function TopBar() {
       </div>
       <div className="flex items-center gap-4">
         <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium">
-          All Systems Normal
+          {session?.role === 'admin' ? '管理员模式' : '成员模式'}
         </span>
-        <span className="text-xs text-slate-400">Phase 1 MVP</span>
+        <span className="text-xs text-slate-400">Mini Family Office</span>
       </div>
     </header>
   );

@@ -1,20 +1,9 @@
 'use client';
 
-interface FamilyMember {
-  id: string;
-  name: string;
-  nameZh: string;
-  role: string;
-  dob: string;
-  status: string;
-  jurisdiction: string;
-  lifeStage: string;
-  occupation?: string;
-  educationStage?: string;
-  avatar: string;
-}
+import type { FamilyMember } from '@/lib/types';
 
-function calcAge(dob: string): number {
+function calcAge(dob: string): number | null {
+  if (!dob) return null;
   const birth = new Date(dob);
   const today = new Date();
   let age = today.getFullYear() - birth.getFullYear();
@@ -23,26 +12,45 @@ function calcAge(dob: string): number {
   return age;
 }
 
-const roleLabels: Record<string, string> = {
-  primary: 'Primary',
+const relationLabels: Record<string, string> = {
+  self: '本人',
+  spouse: '配偶',
+  child: '子女',
+  parent: '父母',
+  other: '其他',
+};
+
+const relationLabelsEn: Record<string, string> = {
+  self: 'Self',
   spouse: 'Spouse',
   child: 'Child',
+  parent: 'Parent',
+  other: 'Other',
 };
 
 const jurisdictionFlags: Record<string, string> = {
-  US: '🇺🇸',
-  HK: '🇭🇰',
-  both: '🇺🇸 🇭🇰',
+  US: '\u{1F1FA}\u{1F1F8}',
+  HK: '\u{1F1ED}\u{1F1F0}',
+  both: '\u{1F1FA}\u{1F1F8} \u{1F1ED}\u{1F1F0}',
+  other: '\u{1F30D}',
 };
 
 const stageLabels: Record<string, string> = {
-  career: 'Career',
-  education: 'Education',
-  retirement: 'Retired',
+  career: '职业',
+  education: '教育',
+  retirement: '退休',
 };
 
-export default function FamilyMemberCard({ member }: { member: FamilyMember }) {
+interface Props {
+  member: FamilyMember;
+  isAdmin?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}
+
+export default function FamilyMemberCard({ member, isAdmin, onEdit, onDelete }: Props) {
   const age = calcAge(member.dob);
+  const totalPersonalExpenses = member.personalExpenses?.reduce((s, e) => s + e.amount, 0) || 0;
 
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
@@ -53,38 +61,62 @@ export default function FamilyMemberCard({ member }: { member: FamilyMember }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold text-slate-800">{member.name}</h3>
-            <span className="text-sm text-slate-400">{member.nameZh}</span>
+            {member.nameZh && <span className="text-sm text-slate-400">{member.nameZh}</span>}
           </div>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">
-              {roleLabels[member.role] || member.role}
+              {relationLabels[member.relationship] || member.relationship}
             </span>
-            <span className="text-xs text-slate-400">Age {age}</span>
+            {age !== null && <span className="text-xs text-slate-400">{age}岁</span>}
             <span className="text-sm">{jurisdictionFlags[member.jurisdiction] || ''}</span>
           </div>
         </div>
+        {isAdmin && (
+          <div className="flex gap-1.5 flex-shrink-0">
+            <button
+              onClick={onEdit}
+              className="px-3 py-1.5 text-xs bg-slate-100 text-slate-600 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"
+            >
+              编辑
+            </button>
+            <button
+              onClick={onDelete}
+              className="px-3 py-1.5 text-xs bg-slate-100 text-slate-600 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
+            >
+              删除
+            </button>
+          </div>
+        )}
       </div>
       <div className="mt-4 space-y-2">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500">Life Stage</span>
+          <span className="text-slate-500">生命阶段 / Life Stage</span>
           <span className="text-slate-700 font-medium">{stageLabels[member.lifeStage] || member.lifeStage}</span>
         </div>
         {member.occupation && (
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-500">Occupation</span>
+            <span className="text-slate-500">职业 / Occupation</span>
             <span className="text-slate-700 font-medium">{member.occupation}</span>
           </div>
         )}
-        {member.educationStage && (
+        {member.employer && (
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-500">Education</span>
-            <span className="text-slate-700 font-medium capitalize">{member.educationStage.replace('_', ' ')}</span>
+            <span className="text-slate-500">雇主 / Employer</span>
+            <span className="text-slate-700 font-medium">{member.employer}</span>
           </div>
         )}
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500">Status</span>
-          <span className="text-green-600 font-medium capitalize">{member.status}</span>
-        </div>
+        {member.monthlySalary > 0 && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-500">月薪 / Salary</span>
+            <span className="text-green-600 font-medium">${member.monthlySalary.toLocaleString()}</span>
+          </div>
+        )}
+        {totalPersonalExpenses > 0 && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-500">个人月度开销 / Personal</span>
+            <span className="text-red-500 font-medium">${totalPersonalExpenses.toLocaleString()}</span>
+          </div>
+        )}
       </div>
     </div>
   );
