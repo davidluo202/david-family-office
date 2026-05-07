@@ -20,12 +20,15 @@ export default function SettingsPage() {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [rapidApiKey, setRapidApiKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
     const c = loadConfig();
     setConfig(c);
     if (c) setFamilyName(c.familyName);
     setUsers(loadUsers());
+    setRapidApiKey(localStorage.getItem('mfo_rapidapi_key') || '');
   }, []);
 
   const showMsg = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -115,6 +118,15 @@ export default function SettingsPage() {
     clearSession();
     logout();
     router.push('/setup');
+  };
+
+  const handleSaveApiKey = () => {
+    if (rapidApiKey.trim()) {
+      localStorage.setItem('mfo_rapidapi_key', rapidApiKey.trim());
+    } else {
+      localStorage.removeItem('mfo_rapidapi_key');
+    }
+    showMsg('API Key 已保存');
   };
 
   return (
@@ -213,6 +225,47 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* API Keys */}
+      {isAdmin && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+          <h3 className="text-lg font-semibold text-slate-800 mb-1">API Keys</h3>
+          <p className="text-xs text-slate-400 mb-4">用于 Zillow Zestimate 查询 · Used for Zillow property estimates</p>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                RapidAPI Key <span className="text-xs text-slate-400">(zillow-com1.p.rapidapi.com)</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type={showApiKey ? 'text' : 'password'}
+                  value={rapidApiKey}
+                  onChange={(e) => setRapidApiKey(e.target.value)}
+                  placeholder="Enter your RapidAPI key..."
+                  className="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey((v) => !v)}
+                  className="px-3 py-2.5 border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50"
+                >
+                  {showApiKey ? '隐藏' : '显示'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveApiKey}
+                  className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                >
+                  保存
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                获取免费Key: <a href="https://rapidapi.com/apimaker/api/zillow-com1" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">rapidapi.com → Zillow API</a>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Data Management */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">数据管理 / Data Management</h3>
@@ -269,7 +322,7 @@ export default function SettingsPage() {
       {/* About */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
         <h3 className="text-lg font-semibold text-slate-800 mb-2">关于 / About</h3>
-        <p className="text-sm text-slate-500">Mini Family Office v0.3.0</p>
+        <p className="text-sm text-slate-500">Mini Family Office v0.3.1</p>
         <p className="text-xs text-slate-400 mt-1">数据存储在浏览器本地 (localStorage)</p>
         <p className="text-xs text-slate-400">Data is stored locally in your browser</p>
       </div>

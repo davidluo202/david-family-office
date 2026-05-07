@@ -47,7 +47,7 @@ export default function MemberForm({ member, onSave, onCancel }: Props) {
       nameZh: nameZh.trim(),
       phone: phone.trim() || undefined,
       email: email.trim() || undefined,
-      avatarUrl: avatarUrl.trim() || undefined,
+      avatarUrl: avatarUrl || undefined,
       gender,
       dob,
       relationship,
@@ -135,8 +135,58 @@ export default function MemberForm({ member, onSave, onCancel }: Props) {
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="name@example.com" />
           </div>
           <div className="col-span-2">
-            <label className={labelClass}>头像链接 <span className={subLabelClass}>Avatar URL (optional)</span></label>
-            <input type="url" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} className={inputClass} placeholder="https://example.com/photo.jpg" />
+            <label className={labelClass}>头像照片 <span className={subLabelClass}>Profile Photo (optional)</span></label>
+            <div className="flex items-center gap-4">
+              {avatarUrl && (
+                <div className="relative flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={avatarUrl} alt="Preview" className="w-16 h-16 rounded-full object-cover border-2 border-slate-200" />
+                </div>
+              )}
+              {!avatarUrl && (
+                <div className="w-16 h-16 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-xs flex-shrink-0">
+                  无照片
+                </div>
+              )}
+              <div className="flex flex-col gap-2 flex-1">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const img = new Image();
+                      img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 200;
+                        canvas.height = 200;
+                        const ctx = canvas.getContext('2d')!;
+                        const size = Math.min(img.width, img.height);
+                        const x = (img.width - size) / 2;
+                        const y = (img.height - size) / 2;
+                        ctx.drawImage(img, x, y, size, size, 0, 0, 200, 200);
+                        const base64 = canvas.toDataURL('image/jpeg', 0.8);
+                        setAvatarUrl(base64);
+                      };
+                      img.src = ev.target?.result as string;
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+                {avatarUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setAvatarUrl('')}
+                    className="text-xs text-red-500 hover:text-red-600 text-left w-fit"
+                  >
+                    移除照片 / Remove Photo
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

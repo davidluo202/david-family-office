@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { loadAssets, loadLiabilities, saveAssets, saveLiabilities } from '@/lib/storage';
 import { useAuth } from '@/lib/AuthContext';
 import type { Asset, Liability } from '@/lib/types';
+import { fetchZestimate } from '@/lib/zillow';
 
 function fmt(v: number) {
   return `$${v.toLocaleString()}`;
@@ -44,12 +45,45 @@ function ItemForm({ type, onSave, onCancel, editing }: ItemFormProps) {
   const [propertyAddress, setPropertyAddress] = useState(editingAsset?.propertyAddress || '');
   const [zestimate, setZestimate] = useState(editingAsset?.zestimate?.toString() || '');
   const [toastMsg, setToastMsg] = useState('');
+  const [toastType, setToastType] = useState<'info' | 'error' | 'success'>('info');
+  const [fetchLoading, setFetchLoading] = useState(false);
+  const [propDetails, setPropDetails] = useState<{ bedrooms: number | null; bathrooms: number | null; livingArea: number | null; yearBuilt: number | null } | null>(null);
 
   const isRealEstate = type === 'asset' && category === 'real_estate';
 
-  const handleFetchEstimate = () => {
-    setToastMsg('Coming soon — Zillow Zestimate integration is not yet available.');
-    setTimeout(() => setToastMsg(''), 3000);
+  const showToast = (msg: string, type: 'info' | 'error' | 'success' = 'info') => {
+    setToastMsg(msg);
+    setToastType(type);
+    setTimeout(() => setToastMsg(''), 4000);
+  };
+
+  const handleFetchEstimate = async () => {
+    if (!propertyAddress.trim()) {
+      showToast('请先输入物业地址 / Please enter property address first', 'error');
+      return;
+    }
+    setFetchLoading(true);
+    const result = await fetchZestimate(propertyAddress.trim());
+    setFetchLoading(false);
+    if (result.error) {
+      if (result.error.includes('RapidAPI key')) {
+        showToast('请先在设置中填写 RapidAPI Key / Please set RapidAPI Key in Settings', 'error');
+      } else {
+        showToast(`Zillow: ${result.error}`, 'error');
+      }
+      return;
+    }
+    if (result.zestimate) {
+      setZestimate(result.zestimate.toString());
+      setValue(result.zestimate.toString());
+    }
+    setPropDetails({
+      bedrooms: result.bedrooms,
+      bathrooms: result.bathrooms,
+      livingArea: result.livingArea,
+      yearBuilt: result.yearBuilt,
+    });
+    showToast(`Zestimate: $${result.zestimate?.toLocaleString() || 'N/A'}${result.rentZestimate ? ` · Rent: $${result.rentZestimate.toLocaleString()}/mo` : ''}`, 'success');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -82,7 +116,11 @@ function ItemForm({ type, onSave, onCancel, editing }: ItemFormProps) {
   return (
     <form onSubmit={handleSubmit} className="bg-blue-50 rounded-xl p-4 border border-blue-100 space-y-3">
       {toastMsg && (
-        <div className="p-2 bg-amber-50 text-amber-700 text-xs rounded-lg border border-amber-200">{toastMsg}</div>
+        <div className={`p-2 text-xs rounded-lg border ${
+          toastType === 'error' ? 'bg-red-50 text-red-700 border-red-200' :
+          toastType === 'success' ? 'bg-green-50 text-green-700 border-green-200' :
+          'bg-amber-50 text-amber-700 border-amber-200'
+        }`}>{toastMsg}</div>
       )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
@@ -116,12 +154,20 @@ function ItemForm({ type, onSave, onCancel, editing }: ItemFormProps) {
             <div className="flex gap-2">
               <input type="number" value={zestimate} onChange={(e) => setZestimate(e.target.value)}
                 placeholder="0" min="0" step="1000" className={`flex-1 ${inputCls}`} />
-              <button type="button" onClick={handleFetchEstimate}
-                className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 whitespace-nowrap">
-                Fetch Estimate
+              <button type="button" onClick={handleFetchEstimate} disabled={fetchLoading}
+                className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 whitespace-nowrap disabled:opacity-60">
+                {fetchLoading ? '查询中...' : 'Fetch Zillow'}
               </button>
             </div>
           </div>
+          {propDetails && (propDetails.bedrooms || propDetails.bathrooms || propDetails.livingArea || propDetails.yearBuilt) && (
+            <div className="md:col-span-3 flex flex-wrap gap-3 text-xs text-slate-600 bg-emerald-50 rounded-lg p-2 border border-emerald-100">
+              {propDetails.bedrooms && <span>卧室 {propDetails.bedrooms} bd</span>}
+              {propDetails.bathrooms && <span>浴室 {propDetails.bathrooms} ba</span>}
+              {propDetails.livingArea && <span>面积 {propDetails.livingArea.toLocaleString()} sqft</span>}
+              {propDetails.yearBuilt && <span>建于 {propDetails.yearBuilt}</span>}
+            </div>
+          )}
         </div>
       )}
     </form>
