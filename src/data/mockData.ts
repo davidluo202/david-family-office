@@ -139,12 +139,56 @@ export const financialConnections = [
   },
 ];
 
+// Robinhood portfolio — David's actual holdings (as of 2026-05-04)
+// Total equity cost basis: $208,878 | Cash: $58,000 | Grand total: $266,878
+export const robinhoodHoldings = [
+  // Tech
+  { symbol: 'ARKK',  name: 'ARK Innovation ETF',         category: 'Tech',         qty: 1100,        avgCost: 42.43,  costBasis: 46673   },
+  { symbol: 'TSLA',  name: 'Tesla',                       category: 'Tech',         qty: 250,         avgCost: 203.35, costBasis: 50838   },
+  { symbol: 'NVDA',  name: 'Nvidia',                      category: 'Tech',         qty: 165.067737,  avgCost: 127.81, costBasis: 21104   },
+  { symbol: 'PLTR',  name: 'Palantir',                    category: 'Tech',         qty: 250,         avgCost: 31.38,  costBasis: 7845    },
+  { symbol: 'TSM',   name: 'TSMC',                        category: 'Tech',         qty: 80,          avgCost: 110.50, costBasis: 8840    },
+  { symbol: 'XLK',   name: 'Technology Select SPDR ETF',  category: 'Tech',         qty: 100,         avgCost: 116.00, costBasis: 11600   },
+  // Fintech
+  { symbol: 'SOFI',  name: 'SoFi Technologies',           category: 'Fintech',      qty: 200,         avgCost: 6.54,   costBasis: 1308    },
+  { symbol: 'HOOD',  name: 'Robinhood Markets',           category: 'Fintech',      qty: 20,          avgCost: 105.06, costBasis: 2101    },
+  // Space / Defense
+  { symbol: 'RKLB',  name: 'Rocket Lab',                  category: 'Space/Defense',qty: 180,         avgCost: 41.50,  costBasis: 7470    },
+  // Healthcare
+  { symbol: 'ISRG',  name: 'Intuitive Surgical',          category: 'Healthcare',   qty: 5,           avgCost: 433.59, costBasis: 2168    },
+  { symbol: 'HIMS',  name: 'Hims & Hers Health',          category: 'Healthcare',   qty: 300,         avgCost: 35.88,  costBasis: 10764   },
+  // Crypto-related
+  { symbol: 'IBIT',  name: 'iShares Bitcoin Trust ETF',   category: 'Crypto',       qty: 139.977603,  avgCost: 35.72,  costBasis: 4998    },
+  { symbol: 'ARBK',  name: 'Argo Blockchain',             category: 'Crypto',       qty: 55.555556,   avgCost: 133.68, costBasis: 7427    },
+  { symbol: 'CRWV',  name: 'CoreWeave',                   category: 'Crypto',       qty: 60,          avgCost: 101.09, costBasis: 6065    },
+  // Mining
+  { symbol: 'CDE',   name: 'Coeur Mining',                category: 'Mining',       qty: 60,          avgCost: 22.21,  costBasis: 1333    },
+  // Other
+  { symbol: 'NIO',   name: 'NIO Inc.',                    category: 'Other',        qty: 100,         avgCost: 7.52,   costBasis: 752     },
+  { symbol: 'ONL',   name: 'Orion Office REIT',           category: 'Other',        qty: 20,          avgCost: 5.05,   costBasis: 101     },
+  { symbol: 'VSAT',  name: 'Viasat',                      category: 'Other',        qty: 60,          avgCost: 15.16,  costBasis: 910     },
+  { symbol: 'CRCL',  name: 'Circle Internet Group',       category: 'Other',        qty: 200,         avgCost: 83.91,  costBasis: 16782   },
+];
+
+export const robinhoodCash = 58_000;
+// Sum of costBasis above = 208,878; total with cash = 266,878
+export const robinhoodTotalCost = robinhoodHoldings.reduce((s, h) => s + h.costBasis, 0) + robinhoodCash;
+
 export const assets = {
-  cash: { label: 'Cash & Savings', value: 0 },
+  cash: { label: 'Cash & Savings', value: 58_000 },  // Robinhood cash balance
   investments: {
     label: 'Investment Portfolio',
-    value: 0,
-    breakdown: { stocks: 0, bonds: 0, etfs: 0 },
+    value: 208_878,  // Robinhood equity cost basis
+    breakdown: {
+      // Category cost-basis totals
+      tech:         146_900,  // ARKK+TSLA+NVDA+PLTR+TSM+XLK
+      fintech:       3_409,   // SOFI+HOOD
+      spaceDefense:  7_470,   // RKLB
+      healthcare:   12_932,   // ISRG+HIMS
+      crypto:       18_490,   // IBIT+ARBK+CRWV
+      mining:        1_333,   // CDE
+      other:        18_545,   // NIO+ONL+VSAT+CRCL
+    },
   },
   retirement: {
     label: 'Retirement Accounts',
