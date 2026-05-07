@@ -180,6 +180,10 @@ export const assets = {
     label: 'Investment Portfolio',
     value: 208_878,  // Robinhood equity cost basis
     breakdown: {
+      // Legacy keys used by healthScore.ts — mapped to nearest equivalents
+      stocks: 146_062,  // individual stocks (non-ETF) cost basis
+      bonds:       0,
+      etfs:     62_816,  // ARKK + XLK + IBIT cost basis
       // Category cost-basis totals
       tech:         146_900,  // ARKK+TSLA+NVDA+PLTR+TSM+XLK
       fintech:       3_409,   // SOFI+HOOD
