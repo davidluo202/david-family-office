@@ -10,6 +10,7 @@ const navItems = [
   { href: '/', label: 'Dashboard', labelZh: '仪表盘', icon: '\u{1F3E0}' },
   { href: '/family', label: 'Family Members', labelZh: '家庭成员', icon: '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}' },
   { href: '/wealth', label: 'Assets & Liabilities', labelZh: '资产负债', icon: '\u{1F4B0}' },
+  { href: '/portfolio', label: 'Portfolio', labelZh: '投资持仓', icon: '\u{1F4C8}' },
   { href: '/analytics', label: 'Analytics', labelZh: '趋势分析', icon: '\u{1F4CA}' },
   { href: '/expenses', label: 'Income & Expenses', labelZh: '收支管理', icon: '\u{1F4B3}' },
   { href: '/accounts', label: 'Bank Accounts', labelZh: '银行账户', icon: '\u{1F3E6}' },
