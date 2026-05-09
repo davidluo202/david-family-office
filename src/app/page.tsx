@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { loadMembers, loadAssets, loadLiabilities, loadExpenses, loadGoals, loadConfig } from '@/lib/storage';
 import type { FamilyMember, Asset, Liability, HouseholdExpenses, Goal } from '@/lib/types';
+import { robinhoodHoldings, robinhoodCash, robinhoodTotalCost } from '@/data/mockData';
 import Link from 'next/link';
 
 function fmt(v: number) {
@@ -38,7 +39,8 @@ export default function Dashboard() {
     if (config) setFamilyName(config.familyName);
   }, []);
 
-  const totalAssets = assets.reduce((s, a) => s + a.value, 0);
+  const manualAssets = assets.reduce((s, a) => s + a.value, 0);
+  const totalAssets = manualAssets + robinhoodTotalCost;
   const totalLiabilities = liabilities.reduce((s, l) => s + l.value, 0);
   const netWorth = totalAssets - totalLiabilities;
   const monthlyExpenses = expenses.monthly.reduce((s, e) => s + e.amount, 0);
@@ -104,6 +106,42 @@ export default function Dashboard() {
               value={`${members.length}`}
               sub={`${adults} 成人, ${children} 子女`}
             />
+          </div>
+
+          {/* Robinhood Portfolio Quick View */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">投资组合 / Robinhood Portfolio</h3>
+              <Link href="/portfolio" className="text-xs text-blue-600 hover:text-blue-700">查看详情 &rarr;</Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-xs text-slate-400">Cost Basis</p>
+                <p className="text-lg font-bold text-slate-800">{fmt(robinhoodTotalCost)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Equity</p>
+                <p className="text-lg font-bold text-slate-800">{fmt(robinhoodTotalCost - robinhoodCash)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Cash</p>
+                <p className="text-lg font-bold text-slate-800">{fmt(robinhoodCash)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Positions</p>
+                <p className="text-lg font-bold text-slate-800">{robinhoodHoldings.length}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {robinhoodHoldings.slice(0, 10).map((h) => (
+                <span key={h.symbol} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
+                  {h.symbol}
+                </span>
+              ))}
+              {robinhoodHoldings.length > 10 && (
+                <span className="text-[10px] px-1.5 py-0.5 text-slate-400">+{robinhoodHoldings.length - 10} more</span>
+              )}
+            </div>
           </div>
 
           {/* Quick Overview Grid */}
