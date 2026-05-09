@@ -57,14 +57,26 @@ function plColor(v: number) {
   return 'text-slate-500';
 }
 
+async function getYahooCrumb(): Promise<{ crumb: string }> {
+  try {
+    await fetch('https://fc.yahoo.com', { credentials: 'include' }).catch(() => {});
+    const res = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', { credentials: 'include' });
+    const crumb = await res.text();
+    return { crumb };
+  } catch {
+    return { crumb: '' };
+  }
+}
+
 async function fetchAnalysis(symbols: string[]): Promise<AnalysisMap> {
   const map: AnalysisMap = {};
+  const { crumb } = await getYahooCrumb();
   await Promise.all(
     symbols.map(async (symbol) => {
       try {
         const res = await fetch(
-          `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${symbol}?modules=summaryDetail,financialData,recommendationTrend,price`,
-          { headers: { 'User-Agent': 'Mozilla/5.0' } }
+          `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${symbol}?modules=summaryDetail,financialData,recommendationTrend,price&crumb=${encodeURIComponent(crumb)}`,
+          { credentials: 'include' }
         );
         if (!res.ok) return;
         const json = await res.json();
