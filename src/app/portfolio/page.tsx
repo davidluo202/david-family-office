@@ -90,73 +90,97 @@ function generateRecommendation(
   currentPrice: number,
   t?: TechData
 ): Recommendation {
-  if (!a || !currentPrice) {
-    return { symbol: h.symbol, action: 'HOLD', analysis: 'Data unavailable', color: 'text-slate-500' };
+  /**
+   * Layered decision: Trend(MA20) → Momentum(MACD) → Volume → Fundamentals → Position Mgmt
+   * When trend & momentum agree → strong signal. When conflict → cautious, never contradictory.
+   */
+  if (!currentPrice) {
+    return { symbol: h.symbol, action: 'HOLD', analysis: 'No price data', color: 'text-slate-500 bg-slate-50' };
   }
   const pnlPct = ((currentPrice - h.avgCost) / h.avgCost) * 100;
-  const signals: string[] = [];
-  let score = 0;
 
-  if (a.fwdPe && a.pe && a.fwdPe < a.pe) {
-    signals.push(`Fwd P/E (${a.fwdPe.toFixed(1)}) < Trailing (${a.pe.toFixed(1)})`);
-    score += 1;
-  } else if (a.pe && a.pe > 50) {
-    signals.push(`High P/E (${a.pe.toFixed(1)})`);
-    score -= 1;
-  }
+  // L1: Trend (MA20)
+  const trend = t ? (t.aboveMa20 ? 'up' : 'down') : 'unknown';
 
-  if (a.targetMean && currentPrice) {
-    const upside = ((a.targetMean - currentPrice) / currentPrice) * 100;
-    signals.push(`Target $${a.targetMean.toFixed(0)} (${upside >= 0 ? '+' : ''}${upside.toFixed(0)}%)`);
-    if (upside > 15) score += 2;
-    else if (upside < -10) score -= 2;
-  }
-
-  if (a.recBuy !== undefined && a.recSell !== undefined) {
-    const rec = a.recommendation?.toUpperCase() ?? '';
-    signals.push(`${rec} (${a.recBuy}B/${a.recHold}H/${a.recSell}S)`);
-    if (a.recBuy > (a.recSell ?? 0) * 2) score += 1;
-    else if ((a.recSell ?? 0) > a.recBuy) score -= 1;
-  }
-
-  if (a.fiftyTwoWkHigh && a.fiftyTwoWkLow && currentPrice) {
-    const range = a.fiftyTwoWkHigh !== a.fiftyTwoWkLow
-      ? ((currentPrice - a.fiftyTwoWkLow) / (a.fiftyTwoWkHigh - a.fiftyTwoWkLow)) * 100
-      : 50;
-    if (range > 90) { signals.push(`Near 52wk high`); score -= 1; }
-    else if (range < 20) { signals.push(`Near 52wk low`); score += 1; }
-  }
-
-  if (a.revenueGrowth) {
-    if (a.revenueGrowth > 0.2) { signals.push(`Rev +${(a.revenueGrowth * 100).toFixed(0)}%`); score += 1; }
-    else if (a.revenueGrowth < 0) { signals.push(`Rev ${(a.revenueGrowth * 100).toFixed(0)}%`); score -= 1; }
-  }
-
-  if (pnlPct > 30) { signals.push(`Gain ${pnlPct.toFixed(0)}%: consider partial profit-taking (>30% rule)`); score -= 1; }
-  else if (pnlPct < -30) signals.push(`Significant loss (${pnlPct.toFixed(0)}%): review thesis`);
-
-  // Technical signals (4 rules)
+  // L2: Momentum (MACD)
+  let momentum = 'unknown';
   if (t) {
-    if (t.macdGolden) { signals.push('MACD golden cross'); score += 2; }
-    else if (t.macdDeath) { signals.push('MACD death cross'); score -= 2; }
-    else if (t.macdBullish) { signals.push('MACD bullish'); score += 1; }
-    else { signals.push('MACD bearish'); score -= 1; }
-
-    if (t.aboveMa20) { signals.push('Above MA20'); score += 1; }
-    else { signals.push('Below MA20 (STOP-LOSS)'); score -= 2; }
-
-    if (t.volSurge && t.aboveMa20) { signals.push(`Vol surge x${t.volRatio}`); score += 1; }
+    if (t.macdGolden) momentum = 'golden_cross';
+    else if (t.macdDeath) momentum = 'death_cross';
+    else if (t.macdBullish) momentum = 'bullish';
+    else momentum = 'bearish';
   }
 
-  let action: string;
-  let color: string;
-  if (score >= 3) { action = 'BUY / ADD'; color = 'text-green-600 bg-green-50'; }
-  else if (score >= 1) { action = 'HOLD (Bullish)'; color = 'text-emerald-600 bg-emerald-50'; }
-  else if (score <= -3) { action = 'SELL / REDUCE'; color = 'text-red-600 bg-red-50'; }
-  else if (score <= -1) { action = 'HOLD (Cautious)'; color = 'text-amber-600 bg-amber-50'; }
-  else { action = 'HOLD'; color = 'text-slate-600 bg-slate-50'; }
+  // L3: Volume
+  const volConfirmed = t?.volSurge ?? false;
 
-  return { symbol: h.symbol, action, analysis: signals.slice(0, 4).join(' | ') || 'Insufficient data', color };
+  // L4: Fundamentals
+  let fundScore = 0;
+  const fundNotes: string[] = [];
+  if (a) {
+    if (a.targetMean && currentPrice) {
+      const upside = ((a.targetMean - currentPrice) / currentPrice) * 100;
+      if (upside > 15) { fundScore += 1; fundNotes.push(`Target $${a.targetMean.toFixed(0)} (+${upside.toFixed(0)}%)`); }
+      else if (upside < -10) { fundScore -= 1; fundNotes.push(`Target $${a.targetMean.toFixed(0)} (${upside.toFixed(0)}%)`); }
+    }
+    if ((a.recBuy ?? 0) > (a.recSell ?? 0) * 2) { fundScore += 1; fundNotes.push(`Consensus: ${a.recommendation?.toUpperCase()}`); }
+    else if ((a.recSell ?? 0) > (a.recBuy ?? 0)) { fundScore -= 1; fundNotes.push(`Consensus: ${a.recommendation?.toUpperCase()}`); }
+  }
+
+  // L5: Position management
+  const profitTake = pnlPct > 30;
+  const deepLoss = pnlPct < -30;
+
+  // === Decision (hierarchical, no contradictions) ===
+  let action: string;
+  let reason: string;
+  let color: string;
+
+  if (trend === 'down' && (momentum === 'death_cross' || momentum === 'bearish')) {
+    action = 'SELL / REDUCE';
+    color = 'text-red-600 bg-red-50';
+    reason = `Trend DOWN + MACD ${momentum.replace('_', ' ')}`;
+  } else if (trend === 'down' && (momentum === 'golden_cross' || momentum === 'bullish')) {
+    action = 'WAIT';
+    color = 'text-amber-600 bg-amber-50';
+    reason = 'Below MA20 but MACD turning up — wait for MA20 reclaim';
+  } else if (trend === 'up' && (momentum === 'golden_cross' || momentum === 'bullish')) {
+    if (volConfirmed || fundScore > 0) {
+      action = 'BUY / ADD';
+      color = 'text-green-600 bg-green-50';
+      reason = `Trend UP + MACD ${momentum.replace('_', ' ')}` + (volConfirmed ? ' + vol confirmed' : ' + fundamentals support');
+    } else {
+      action = 'HOLD (Bullish)';
+      color = 'text-emerald-600 bg-emerald-50';
+      reason = `Trend UP + MACD ${momentum.replace('_', ' ')} — ride the trend`;
+    }
+  } else if (trend === 'up' && (momentum === 'death_cross' || momentum === 'bearish')) {
+    action = 'HOLD (Caution)';
+    color = 'text-amber-600 bg-amber-50';
+    reason = 'Above MA20 but MACD weakening — watch for breakdown';
+  } else {
+    action = fundScore >= 1 ? 'HOLD (Bullish)' : fundScore <= -1 ? 'HOLD (Cautious)' : 'HOLD';
+    color = fundScore >= 1 ? 'text-emerald-600 bg-emerald-50' : fundScore <= -1 ? 'text-amber-600 bg-amber-50' : 'text-slate-600 bg-slate-50';
+    reason = fundNotes.length > 0 ? fundNotes[0] : 'Awaiting technical data';
+  }
+
+  // Append fund note
+  if (fundNotes.length > 0 && !reason.includes('Target') && !reason.includes('Consensus')) {
+    reason += ` | ${fundNotes[0]}`;
+  }
+
+  // Position management override
+  if (profitTake && (action === 'HOLD (Bullish)' || action === 'BUY / ADD')) {
+    action = 'PARTIAL SELL';
+    color = 'text-orange-600 bg-orange-50';
+    reason = `Gain +${pnlPct.toFixed(0)}% > 30%: take partial profits | ${reason}`;
+  } else if (profitTake && action.includes('SELL')) {
+    reason = `Gain +${pnlPct.toFixed(0)}%: lock in profits | ${reason}`;
+  } else if (deepLoss && action.includes('SELL')) {
+    reason = `Loss ${pnlPct.toFixed(0)}%: cut loss | ${reason}`;
+  }
+
+  return { symbol: h.symbol, action, analysis: reason, color };
 }
 
 async function fetchPrices(symbols: string[]): Promise<PriceMap> {
