@@ -40,7 +40,9 @@ type AnalysisMap = Record<string, AnalysisData>;
 interface Recommendation {
   symbol: string;
   action: string;
+  actionZh: string;
   analysis: string;
+  detail: string;
   color: string;
 }
 
@@ -95,13 +97,13 @@ function generateRecommendation(
    * When trend & momentum agree → strong signal. When conflict → cautious, never contradictory.
    */
   if (!currentPrice) {
-    return { symbol: h.symbol, action: 'HOLD', analysis: 'No price data', color: 'text-slate-500 bg-slate-50' };
+    return { symbol: h.symbol, action: 'HOLD', actionZh: '持币观望', analysis: '暂无数据', detail: '', color: 'text-slate-500 bg-slate-50' };
   }
   const pnlPct = ((currentPrice - h.avgCost) / h.avgCost) * 100;
+  const mktVal = currentPrice * h.qty;
 
   // L1: Trend (MA20)
   const trend = t ? (t.aboveMa20 ? 'up' : 'down') : 'unknown';
-
   // L2: Momentum (MACD)
   let momentum = 'unknown';
   if (t) {
@@ -110,77 +112,113 @@ function generateRecommendation(
     else if (t.macdBullish) momentum = 'bullish';
     else momentum = 'bearish';
   }
-
   // L3: Volume
   const volConfirmed = t?.volSurge ?? false;
-
   // L4: Fundamentals
   let fundScore = 0;
   const fundNotes: string[] = [];
   if (a) {
     if (a.targetMean && currentPrice) {
       const upside = ((a.targetMean - currentPrice) / currentPrice) * 100;
-      if (upside > 15) { fundScore += 1; fundNotes.push(`Target $${a.targetMean.toFixed(0)} (+${upside.toFixed(0)}%)`); }
-      else if (upside < -10) { fundScore -= 1; fundNotes.push(`Target $${a.targetMean.toFixed(0)} (${upside.toFixed(0)}%)`); }
+      if (upside > 15) { fundScore += 1; fundNotes.push(`分析师目标价 $${a.targetMean.toFixed(0)}（上行空间 ${upside.toFixed(0)}%）`); }
+      else if (upside < -10) { fundScore -= 1; fundNotes.push(`分析师目标价 $${a.targetMean.toFixed(0)}（下行风险 ${upside.toFixed(0)}%）`); }
+      else { fundNotes.push(`分析师目标价 $${a.targetMean.toFixed(0)}（${upside >= 0 ? '+' : ''}${upside.toFixed(0)}%）`); }
     }
-    if ((a.recBuy ?? 0) > (a.recSell ?? 0) * 2) { fundScore += 1; fundNotes.push(`Consensus: ${a.recommendation?.toUpperCase()}`); }
-    else if ((a.recSell ?? 0) > (a.recBuy ?? 0)) { fundScore -= 1; fundNotes.push(`Consensus: ${a.recommendation?.toUpperCase()}`); }
+    if ((a.recBuy ?? 0) > (a.recSell ?? 0) * 2) { fundScore += 1; }
+    else if ((a.recSell ?? 0) > (a.recBuy ?? 0)) { fundScore -= 1; }
   }
-
   // L5: Position management
   const profitTake = pnlPct > 30;
-  const deepLoss = pnlPct < -30;
 
-  // === Decision (hierarchical, no contradictions) ===
+  // === Build detailed report ===
+  const lines: string[] = [];
+  lines.push(`【${h.symbol}】${h.name}`);
+  lines.push(`类别：${h.category}`);
+  lines.push(`持仓：${Number.isInteger(h.qty) ? h.qty : h.qty.toFixed(2)} 股 | 均价 $${h.avgCost.toFixed(2)} | 成本 $${h.costBasis.toLocaleString()}`);
+  lines.push(`现价：$${currentPrice.toFixed(2)} | 市值 $${mktVal.toLocaleString(undefined, {maximumFractionDigits:0})} | 盈亏 ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%`);
+  lines.push('');
+  lines.push('--- 技术面分析 ---');
+  if (t) {
+    lines.push(`趋势(MA20)：价格${t.aboveMa20 ? '在MA20上方，处于上升趋势' : '跌破MA20，处于下降趋势'}`);
+    const macdDesc = momentum === 'golden_cross' ? 'MACD金叉（强烈买入信号）'
+      : momentum === 'death_cross' ? 'MACD死叉（强烈卖出信号）'
+      : momentum === 'bullish' ? 'MACD多头排列，动能向上'
+      : 'MACD空头排列，动能减弱';
+    lines.push(`动量(MACD)：${macdDesc}`);
+    lines.push(`成交量：${volConfirmed ? '近5日成交量显著放大，信号可靠性增强' : '成交量正常，无异常放量'}`);
+  } else {
+    lines.push('技术数据暂未获取');
+  }
+  lines.push('');
+  lines.push('--- 基本面分析 ---');
+  if (a) {
+    if (a.pe) lines.push(`市盈率(P/E)：${a.pe.toFixed(1)}${a.fwdPe ? ` | 预期P/E：${a.fwdPe.toFixed(1)}${a.fwdPe < a.pe ? '（盈利增长预期）' : ''}` : ''}`);
+    if (a.marketCap) lines.push(`市值：${a.marketCap > 1e9 ? `$${(a.marketCap / 1e9).toFixed(1)}B` : `$${(a.marketCap / 1e6).toFixed(0)}M`}`);
+    if (fundNotes.length > 0) fundNotes.forEach(n => lines.push(n));
+    if (a.recBuy !== undefined) lines.push(`分析师评级：${a.recBuy}个买入 / ${a.recHold}个持有 / ${a.recSell}个卖出`);
+    if (a.revenueGrowth) lines.push(`营收增长：${(a.revenueGrowth * 100).toFixed(1)}%`);
+  } else {
+    lines.push('基本面数据暂未获取');
+  }
+  lines.push('');
+  lines.push('--- 仓位管理 ---');
+  if (pnlPct > 30) lines.push(`当前盈利 +${pnlPct.toFixed(0)}%，已超过30%止盈线，建议分批止盈锁定利润`);
+  else if (pnlPct > 0) lines.push(`当前盈利 +${pnlPct.toFixed(0)}%，未触及30%止盈线，继续持有`);
+  else if (pnlPct > -30) lines.push(`当前亏损 ${pnlPct.toFixed(0)}%，在可控范围内`);
+  else lines.push(`当前亏损 ${pnlPct.toFixed(0)}%，已超过-30%，需要审视投资逻辑是否成立`);
+
+  // === Decision ===
   let action: string;
-  let reason: string;
+  let actionZh: string;
   let color: string;
+  let summary: string;
 
   if (trend === 'down' && (momentum === 'death_cross' || momentum === 'bearish')) {
-    action = 'SELL / REDUCE';
-    color = 'text-red-600 bg-red-50';
-    reason = `Trend DOWN + MACD ${momentum.replace('_', ' ')}`;
+    action = 'SELL'; actionZh = '建议卖出'; color = 'text-red-600 bg-red-50';
+    summary = '趋势和动量均看跌';
+    lines.push(''); lines.push('--- 操作建议 ---');
+    lines.push('股价跌破MA20且MACD空头，趋势和动量双重确认下行。建议逐步减持或设定止损位清仓，避免进一步亏损。');
   } else if (trend === 'down' && (momentum === 'golden_cross' || momentum === 'bullish')) {
-    action = 'WAIT';
-    color = 'text-amber-600 bg-amber-50';
-    reason = 'Below MA20 but MACD turning up — wait for MA20 reclaim';
+    action = 'WAIT'; actionZh = '到价买入'; color = 'text-amber-600 bg-amber-50';
+    summary = '等待突破MA20';
+    lines.push(''); lines.push('--- 操作建议 ---');
+    lines.push('MACD出现转多信号，但股价仍在MA20下方。建议观望，待股价放量突破MA20后再考虑买入。可设定MA20价位作为触发买入点。');
+    if (t) lines.push(`当前MA20参考价位：关注股价能否站稳MA20上方`);
   } else if (trend === 'up' && (momentum === 'golden_cross' || momentum === 'bullish')) {
     if (volConfirmed || fundScore > 0) {
-      action = 'BUY / ADD';
-      color = 'text-green-600 bg-green-50';
-      reason = `Trend UP + MACD ${momentum.replace('_', ' ')}` + (volConfirmed ? ' + vol confirmed' : ' + fundamentals support');
+      action = 'BUY'; actionZh = '逐步加仓'; color = 'text-green-600 bg-green-50';
+      summary = '趋势动量量价共振';
+      lines.push(''); lines.push('--- 操作建议 ---');
+      lines.push('MA20上方运行+MACD多头' + (volConfirmed ? '+成交量放大确认' : '+基本面支撑') + '，多重信号共振。建议分批加仓，设定MA20为止损位。');
     } else {
-      action = 'HOLD (Bullish)';
-      color = 'text-emerald-600 bg-emerald-50';
-      reason = `Trend UP + MACD ${momentum.replace('_', ' ')} — ride the trend`;
+      action = 'HOLD'; actionZh = '持币待涨'; color = 'text-emerald-600 bg-emerald-50';
+      summary = '趋势向好继续持有';
+      lines.push(''); lines.push('--- 操作建议 ---');
+      lines.push('股价在MA20上方且MACD多头排列，趋势良好。继续持有，以MA20为止损参考。如果MACD出现死叉或股价跌破MA20，则考虑减持。');
     }
   } else if (trend === 'up' && (momentum === 'death_cross' || momentum === 'bearish')) {
-    action = 'HOLD (Caution)';
-    color = 'text-amber-600 bg-amber-50';
-    reason = 'Above MA20 but MACD weakening — watch for breakdown';
+    action = 'CAUTION'; actionZh = '谨慎持有'; color = 'text-amber-600 bg-amber-50';
+    summary = '动量减弱注意风险';
+    lines.push(''); lines.push('--- 操作建议 ---');
+    lines.push('股价仍在MA20上方但MACD已转弱，上涨动能不足。暂时持有但需密切关注：若股价跌破MA20则触发止损卖出。不建议此时加仓。');
   } else {
-    action = fundScore >= 1 ? 'HOLD (Bullish)' : fundScore <= -1 ? 'HOLD (Cautious)' : 'HOLD';
+    actionZh = fundScore >= 1 ? '持币待涨' : fundScore <= -1 ? '谨慎持有' : '持币观望';
+    action = 'HOLD';
     color = fundScore >= 1 ? 'text-emerald-600 bg-emerald-50' : fundScore <= -1 ? 'text-amber-600 bg-amber-50' : 'text-slate-600 bg-slate-50';
-    reason = fundNotes.length > 0 ? fundNotes[0] : 'Awaiting technical data';
-  }
-
-  // Append fund note
-  if (fundNotes.length > 0 && !reason.includes('Target') && !reason.includes('Consensus')) {
-    reason += ` | ${fundNotes[0]}`;
+    summary = '等待更多信号';
+    lines.push(''); lines.push('--- 操作建议 ---');
+    lines.push('技术信号不明确，建议维持现有仓位观望，等待趋势明朗后再做决策。');
   }
 
   // Position management override
-  if (profitTake && (action === 'HOLD (Bullish)' || action === 'BUY / ADD')) {
-    action = 'PARTIAL SELL';
+  if (profitTake && (actionZh === '持币待涨' || actionZh === '逐步加仓')) {
+    actionZh = '分批止盈';
     color = 'text-orange-600 bg-orange-50';
-    reason = `Gain +${pnlPct.toFixed(0)}% > 30%: take partial profits | ${reason}`;
-  } else if (profitTake && action.includes('SELL')) {
-    reason = `Gain +${pnlPct.toFixed(0)}%: lock in profits | ${reason}`;
-  } else if (deepLoss && action.includes('SELL')) {
-    reason = `Loss ${pnlPct.toFixed(0)}%: cut loss | ${reason}`;
+    summary = `盈利${pnlPct.toFixed(0)}%达止盈线`;
+    lines.push(`注意：当前盈利已超过30%止盈线（+${pnlPct.toFixed(0)}%），建议先卖出1/3-1/2锁定利润，剩余仓位跟随趋势。`);
   }
 
-  return { symbol: h.symbol, action, analysis: reason, color };
+  return { symbol: h.symbol, action, actionZh, analysis: summary, detail: lines.join('\n'), color };
 }
 
 async function fetchPrices(symbols: string[]): Promise<PriceMap> {
@@ -196,6 +234,7 @@ export default function PortfolioPage() {
   const [analysisData, setAnalysisData] = useState<AnalysisMap>({});
   const [techData, setTechData] = useState<TechMap>({});
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [modalRec, setModalRec] = useState<Recommendation | null>(null);
   const [loading, setLoading] = useState(true);
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [error, setError] = useState('');
@@ -398,8 +437,8 @@ export default function PortfolioPage() {
                   <th className="text-right px-4 py-3">目标价</th>
                   <th className="text-center px-4 py-3">MACD</th>
                   <th className="text-center px-4 py-3">MA20</th>
-                  <th className="text-center px-4 py-3">建议</th>
-                  <th className="text-left px-4 py-3">分析</th>
+                  <th className="text-center px-4 py-3">操作建议</th>
+                  <th className="text-center px-4 py-3">详情</th>
                 </tr>
               </thead>
               <tbody>
@@ -426,10 +465,17 @@ export default function PortfolioPage() {
                       <td className={`px-4 py-3 text-xs text-center font-medium ${ma20Color}`}>{ma20Label}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${rec.color}`}>
-                          {rec.action}
+                          {rec.actionZh}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-500 max-w-xs">{rec.analysis}</td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => setModalRec(rec)}
+                          className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium"
+                        >
+                          查看分析
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -443,6 +489,42 @@ export default function PortfolioPage() {
           </p>
         </div>
       </div>
+
+      {/* Detail Modal */}
+      {modalRec && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setModalRec(null)}>
+          <div className="fixed inset-0 bg-black/50" />
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 rounded-t-2xl flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">{modalRec.symbol} 分析报告</h3>
+                <span className={`text-sm font-semibold px-3 py-1 rounded-full ${modalRec.color}`}>
+                  {modalRec.actionZh}
+                </span>
+              </div>
+              <button
+                onClick={() => setModalRec(null)}
+                className="text-slate-400 hover:text-slate-600 text-2xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="px-6 py-4">
+              <pre className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed font-sans">
+                {modalRec.detail}
+              </pre>
+            </div>
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 rounded-b-2xl">
+              <p className="text-[10px] text-slate-400">
+                数据来源：Yahoo Finance | 分析方法：MA20趋势+MACD动量+成交量+基本面 | 仅供参考，不构成投资建议
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
