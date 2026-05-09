@@ -10,6 +10,29 @@ interface PriceData {
 
 type PriceMap = Record<string, PriceData>;
 
+interface AnalysisData {
+  pe?: number;
+  fwdPe?: number;
+  marketCap?: number;
+  fiftyTwoWkHigh?: number;
+  fiftyTwoWkLow?: number;
+  targetMean?: number;
+  recommendation?: string;
+  recBuy?: number;
+  recHold?: number;
+  recSell?: number;
+  revenueGrowth?: number;
+}
+
+type AnalysisMap = Record<string, AnalysisData>;
+
+interface Recommendation {
+  symbol: string;
+  action: string;
+  analysis: string;
+  color: string;
+}
+
 function fmt(v: number) {
   return `$${v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
@@ -32,6 +55,103 @@ function plColor(v: number) {
   if (v > 0) return 'text-green-600';
   if (v < 0) return 'text-red-500';
   return 'text-slate-500';
+}
+
+async function fetchAnalysis(symbols: string[]): Promise<AnalysisMap> {
+  const map: AnalysisMap = {};
+  await Promise.all(
+    symbols.map(async (symbol) => {
+      try {
+        const res = await fetch(
+          `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${symbol}?modules=summaryDetail,financialData,recommendationTrend,price`,
+          { headers: { 'User-Agent': 'Mozilla/5.0' } }
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        const data = json.quoteSummary?.result?.[0];
+        if (!data) return;
+        const summary = data.summaryDetail ?? {};
+        const fin = data.financialData ?? {};
+        const price = data.price ?? {};
+        const trend = data.recommendationTrend?.trend?.[0] ?? {};
+        map[symbol] = {
+          pe: summary.trailingPE?.raw,
+          fwdPe: summary.forwardPE?.raw,
+          marketCap: price.marketCap?.raw,
+          fiftyTwoWkHigh: summary.fiftyTwoWeekHigh?.raw,
+          fiftyTwoWkLow: summary.fiftyTwoWeekLow?.raw,
+          targetMean: fin.targetMeanPrice?.raw,
+          recommendation: fin.recommendationKey,
+          recBuy: (trend.strongBuy ?? 0) + (trend.buy ?? 0),
+          recHold: trend.hold ?? 0,
+          recSell: (trend.sell ?? 0) + (trend.strongSell ?? 0),
+          revenueGrowth: fin.revenueGrowth?.raw,
+        };
+      } catch { /* skip */ }
+    })
+  );
+  return map;
+}
+
+function generateRecommendation(
+  h: typeof robinhoodHoldings[number],
+  a: AnalysisData | undefined,
+  currentPrice: number
+): Recommendation {
+  if (!a || !currentPrice) {
+    return { symbol: h.symbol, action: 'HOLD', analysis: 'Data unavailable', color: 'text-slate-500' };
+  }
+  const pnlPct = ((currentPrice - h.avgCost) / h.avgCost) * 100;
+  const signals: string[] = [];
+  let score = 0;
+
+  if (a.fwdPe && a.pe && a.fwdPe < a.pe) {
+    signals.push(`Fwd P/E (${a.fwdPe.toFixed(1)}) < Trailing (${a.pe.toFixed(1)})`);
+    score += 1;
+  } else if (a.pe && a.pe > 50) {
+    signals.push(`High P/E (${a.pe.toFixed(1)})`);
+    score -= 1;
+  }
+
+  if (a.targetMean && currentPrice) {
+    const upside = ((a.targetMean - currentPrice) / currentPrice) * 100;
+    signals.push(`Target $${a.targetMean.toFixed(0)} (${upside >= 0 ? '+' : ''}${upside.toFixed(0)}%)`);
+    if (upside > 15) score += 2;
+    else if (upside < -10) score -= 2;
+  }
+
+  if (a.recBuy !== undefined && a.recSell !== undefined) {
+    const rec = a.recommendation?.toUpperCase() ?? '';
+    signals.push(`${rec} (${a.recBuy}B/${a.recHold}H/${a.recSell}S)`);
+    if (a.recBuy > (a.recSell ?? 0) * 2) score += 1;
+    else if ((a.recSell ?? 0) > a.recBuy) score -= 1;
+  }
+
+  if (a.fiftyTwoWkHigh && a.fiftyTwoWkLow && currentPrice) {
+    const range = a.fiftyTwoWkHigh !== a.fiftyTwoWkLow
+      ? ((currentPrice - a.fiftyTwoWkLow) / (a.fiftyTwoWkHigh - a.fiftyTwoWkLow)) * 100
+      : 50;
+    if (range > 90) { signals.push(`Near 52wk high`); score -= 1; }
+    else if (range < 20) { signals.push(`Near 52wk low`); score += 1; }
+  }
+
+  if (a.revenueGrowth) {
+    if (a.revenueGrowth > 0.2) { signals.push(`Rev +${(a.revenueGrowth * 100).toFixed(0)}%`); score += 1; }
+    else if (a.revenueGrowth < 0) { signals.push(`Rev ${(a.revenueGrowth * 100).toFixed(0)}%`); score -= 1; }
+  }
+
+  if (pnlPct > 100) signals.push(`Large gain (${pnlPct.toFixed(0)}%): consider profit-taking`);
+  else if (pnlPct < -30) signals.push(`Significant loss (${pnlPct.toFixed(0)}%): review thesis`);
+
+  let action: string;
+  let color: string;
+  if (score >= 3) { action = 'BUY / ADD'; color = 'text-green-600 bg-green-50'; }
+  else if (score >= 1) { action = 'HOLD (Bullish)'; color = 'text-emerald-600 bg-emerald-50'; }
+  else if (score <= -3) { action = 'SELL / REDUCE'; color = 'text-red-600 bg-red-50'; }
+  else if (score <= -1) { action = 'HOLD (Cautious)'; color = 'text-amber-600 bg-amber-50'; }
+  else { action = 'HOLD'; color = 'text-slate-600 bg-slate-50'; }
+
+  return { symbol: h.symbol, action, analysis: signals.slice(0, 4).join(' | ') || 'Insufficient data', color };
 }
 
 async function fetchPrices(symbols: string[]): Promise<PriceMap> {
@@ -61,7 +181,10 @@ async function fetchPrices(symbols: string[]): Promise<PriceMap> {
 
 export default function PortfolioPage() {
   const [prices, setPrices] = useState<PriceMap>({});
+  const [analysisData, setAnalysisData] = useState<AnalysisMap>({});
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [analysisLoading, setAnalysisLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -72,6 +195,16 @@ export default function PortfolioPage() {
         if (Object.keys(pm).length === 0) {
           setError('Unable to fetch prices from Yahoo Finance');
         }
+        // Fetch analysis after prices
+        fetchAnalysis(symbols).then((am) => {
+          setAnalysisData(am);
+          const recs = robinhoodHoldings.map((h) => {
+            const p = pm[h.symbol];
+            return generateRecommendation(h, am[h.symbol], p?.current ?? 0);
+          });
+          setRecommendations(recs);
+          setAnalysisLoading(false);
+        }).catch(() => setAnalysisLoading(false));
       })
       .catch(() => setError('Failed to fetch prices'))
       .finally(() => setLoading(false));
@@ -227,6 +360,73 @@ export default function PortfolioPage() {
           <p className="text-sm text-slate-400">Fetching live prices from Yahoo Finance...</p>
         </div>
       )}
+
+      {/* Analysis & Recommendations */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100">
+          <h3 className="text-lg font-semibold text-slate-800">持仓分析与建议 / Position Analysis</h3>
+          <p className="text-xs text-slate-400 mt-1">
+            Based on P/E, analyst targets, consensus ratings, 52-week range, revenue growth, and P&L position.
+          </p>
+        </div>
+        {analysisLoading ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-slate-400">Loading analysis data...</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px]">
+              <thead>
+                <tr className="bg-slate-50 text-xs text-slate-500 font-medium">
+                  <th className="text-left px-4 py-3">代码</th>
+                  <th className="text-right px-4 py-3">现价</th>
+                  <th className="text-right px-4 py-3">P/E</th>
+                  <th className="text-right px-4 py-3">市值</th>
+                  <th className="text-right px-4 py-3">目标价</th>
+                  <th className="text-center px-4 py-3">建议</th>
+                  <th className="text-left px-4 py-3">分析</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recommendations.map((rec) => {
+                  const a = analysisData[rec.symbol];
+                  const p = prices[rec.symbol];
+                  const curr = p?.current ?? 0;
+                  const pe = a?.pe ? a.pe.toFixed(1) : '--';
+                  const cap = a?.marketCap
+                    ? a.marketCap > 1e9
+                      ? `$${(a.marketCap / 1e9).toFixed(1)}B`
+                      : `$${(a.marketCap / 1e6).toFixed(0)}M`
+                    : '--';
+                  const target = a?.targetMean ? `$${a.targetMean.toFixed(0)}` : '--';
+                  return (
+                    <tr key={rec.symbol} className="border-b border-slate-50 hover:bg-slate-50/50">
+                      <td className="px-4 py-3 text-sm font-semibold text-slate-800">{rec.symbol}</td>
+                      <td className="px-4 py-3 text-sm text-right text-slate-700">
+                        {curr ? fmtPrice(curr) : '--'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-slate-600">{pe}</td>
+                      <td className="px-4 py-3 text-sm text-right text-slate-600">{cap}</td>
+                      <td className="px-4 py-3 text-sm text-right text-slate-600">{target}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${rec.color}`}>
+                          {rec.action}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500 max-w-xs">{rec.analysis}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-100">
+          <p className="text-[10px] text-slate-400">
+            Disclaimer: This is automated analysis for reference only, not investment advice. Always do your own research.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
