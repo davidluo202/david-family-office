@@ -10,6 +10,17 @@ interface PriceData {
 
 type PriceMap = Record<string, PriceData>;
 
+interface TechData {
+  aboveMa20: boolean;
+  macdBullish: boolean;
+  macdGolden: boolean;
+  macdDeath: boolean;
+  volSurge: boolean;
+  volRatio: number;
+}
+
+type TechMap = Record<string, TechData>;
+
 interface AnalysisData {
   pe?: number;
   fwdPe?: number;
@@ -55,6 +66,60 @@ function plColor(v: number) {
   if (v > 0) return 'text-green-600';
   if (v < 0) return 'text-red-500';
   return 'text-slate-500';
+}
+
+async function fetchTechnicals(symbols: string[]): Promise<TechMap> {
+  const map: TechMap = {};
+  await Promise.all(
+    symbols.map(async (symbol) => {
+      try {
+        const res = await fetch(
+          `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=3mo&interval=1d`
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        const result = json.chart?.result?.[0];
+        if (!result) return;
+        let closes: number[] = result.indicators?.quote?.[0]?.close ?? [];
+        let volumes: number[] = result.indicators?.quote?.[0]?.volume ?? [];
+        closes = closes.filter((c: number | null) => c !== null);
+        volumes = volumes.filter((v: number | null) => v !== null);
+        if (closes.length < 26) return;
+
+        const price = closes[closes.length - 1];
+        const ma20 = closes.slice(-20).reduce((s, c) => s + c, 0) / 20;
+        const aboveMa20 = price > ma20;
+
+        const ema = (data: number[], period: number): number[] => {
+          const result = [data[0]];
+          const k = 2 / (period + 1);
+          for (let i = 1; i < data.length; i++) {
+            result.push(data[i] * k + result[i - 1] * (1 - k));
+          }
+          return result;
+        };
+        const ema12 = ema(closes, 12);
+        const ema26 = ema(closes, 26);
+        const macdLine = ema12.map((v, i) => v - ema26[i]);
+        const signalLine = ema(macdLine, 9);
+        const hist = macdLine[macdLine.length - 1] - signalLine[signalLine.length - 1];
+        const prevHist = macdLine.length > 1 ? macdLine[macdLine.length - 2] - signalLine[signalLine.length - 2] : 0;
+
+        const vol5 = volumes.slice(-5).reduce((s, v) => s + v, 0) / 5;
+        const vol20 = volumes.slice(-20).reduce((s, v) => s + v, 0) / 20;
+
+        map[symbol] = {
+          aboveMa20,
+          macdBullish: hist > 0,
+          macdGolden: hist > 0 && prevHist <= 0,
+          macdDeath: hist < 0 && prevHist >= 0,
+          volSurge: vol20 > 0 && vol5 > vol20 * 1.3,
+          volRatio: vol20 > 0 ? Math.round((vol5 / vol20) * 100) / 100 : 0,
+        };
+      } catch { /* skip */ }
+    })
+  );
+  return map;
 }
 
 async function getYahooCrumb(): Promise<{ crumb: string }> {
@@ -108,7 +173,8 @@ async function fetchAnalysis(symbols: string[]): Promise<AnalysisMap> {
 function generateRecommendation(
   h: typeof robinhoodHoldings[number],
   a: AnalysisData | undefined,
-  currentPrice: number
+  currentPrice: number,
+  t?: TechData
 ): Recommendation {
   if (!a || !currentPrice) {
     return { symbol: h.symbol, action: 'HOLD', analysis: 'Data unavailable', color: 'text-slate-500' };
@@ -152,8 +218,21 @@ function generateRecommendation(
     else if (a.revenueGrowth < 0) { signals.push(`Rev ${(a.revenueGrowth * 100).toFixed(0)}%`); score -= 1; }
   }
 
-  if (pnlPct > 100) signals.push(`Large gain (${pnlPct.toFixed(0)}%): consider profit-taking`);
+  if (pnlPct > 30) { signals.push(`Gain ${pnlPct.toFixed(0)}%: consider partial profit-taking (>30% rule)`); score -= 1; }
   else if (pnlPct < -30) signals.push(`Significant loss (${pnlPct.toFixed(0)}%): review thesis`);
+
+  // Technical signals (4 rules)
+  if (t) {
+    if (t.macdGolden) { signals.push('MACD golden cross'); score += 2; }
+    else if (t.macdDeath) { signals.push('MACD death cross'); score -= 2; }
+    else if (t.macdBullish) { signals.push('MACD bullish'); score += 1; }
+    else { signals.push('MACD bearish'); score -= 1; }
+
+    if (t.aboveMa20) { signals.push('Above MA20'); score += 1; }
+    else { signals.push('Below MA20 (STOP-LOSS)'); score -= 2; }
+
+    if (t.volSurge && t.aboveMa20) { signals.push(`Vol surge x${t.volRatio}`); score += 1; }
+  }
 
   let action: string;
   let color: string;
@@ -194,6 +273,7 @@ async function fetchPrices(symbols: string[]): Promise<PriceMap> {
 export default function PortfolioPage() {
   const [prices, setPrices] = useState<PriceMap>({});
   const [analysisData, setAnalysisData] = useState<AnalysisMap>({});
+  const [techData, setTechData] = useState<TechMap>({});
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [analysisLoading, setAnalysisLoading] = useState(true);
@@ -207,12 +287,13 @@ export default function PortfolioPage() {
         if (Object.keys(pm).length === 0) {
           setError('Unable to fetch prices from Yahoo Finance');
         }
-        // Fetch analysis after prices
-        fetchAnalysis(symbols).then((am) => {
+        // Fetch analysis + technicals after prices
+        Promise.all([fetchAnalysis(symbols), fetchTechnicals(symbols)]).then(([am, tm]) => {
           setAnalysisData(am);
+          setTechData(tm);
           const recs = robinhoodHoldings.map((h) => {
             const p = pm[h.symbol];
-            return generateRecommendation(h, am[h.symbol], p?.current ?? 0);
+            return generateRecommendation(h, am[h.symbol], p?.current ?? 0, tm[h.symbol]);
           });
           setRecommendations(recs);
           setAnalysisLoading(false);
@@ -393,8 +474,9 @@ export default function PortfolioPage() {
                   <th className="text-left px-4 py-3">代码</th>
                   <th className="text-right px-4 py-3">现价</th>
                   <th className="text-right px-4 py-3">P/E</th>
-                  <th className="text-right px-4 py-3">市值</th>
                   <th className="text-right px-4 py-3">目标价</th>
+                  <th className="text-center px-4 py-3">MACD</th>
+                  <th className="text-center px-4 py-3">MA20</th>
                   <th className="text-center px-4 py-3">建议</th>
                   <th className="text-left px-4 py-3">分析</th>
                 </tr>
@@ -402,15 +484,15 @@ export default function PortfolioPage() {
               <tbody>
                 {recommendations.map((rec) => {
                   const a = analysisData[rec.symbol];
+                  const t = techData[rec.symbol];
                   const p = prices[rec.symbol];
                   const curr = p?.current ?? 0;
                   const pe = a?.pe ? a.pe.toFixed(1) : '--';
-                  const cap = a?.marketCap
-                    ? a.marketCap > 1e9
-                      ? `$${(a.marketCap / 1e9).toFixed(1)}B`
-                      : `$${(a.marketCap / 1e6).toFixed(0)}M`
-                    : '--';
                   const target = a?.targetMean ? `$${a.targetMean.toFixed(0)}` : '--';
+                  const macdLabel = t ? (t.macdGolden ? 'Golden X' : t.macdDeath ? 'Death X' : t.macdBullish ? 'Bullish' : 'Bearish') : '--';
+                  const macdColor = t ? (t.macdGolden ? 'text-green-600' : t.macdDeath ? 'text-red-500' : t.macdBullish ? 'text-emerald-500' : 'text-orange-500') : 'text-slate-400';
+                  const ma20Label = t ? (t.aboveMa20 ? 'Above' : 'Below') : '--';
+                  const ma20Color = t ? (t.aboveMa20 ? 'text-green-600' : 'text-red-500') : 'text-slate-400';
                   return (
                     <tr key={rec.symbol} className="border-b border-slate-50 hover:bg-slate-50/50">
                       <td className="px-4 py-3 text-sm font-semibold text-slate-800">{rec.symbol}</td>
@@ -418,8 +500,9 @@ export default function PortfolioPage() {
                         {curr ? fmtPrice(curr) : '--'}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-slate-600">{pe}</td>
-                      <td className="px-4 py-3 text-sm text-right text-slate-600">{cap}</td>
                       <td className="px-4 py-3 text-sm text-right text-slate-600">{target}</td>
+                      <td className={`px-4 py-3 text-xs text-center font-medium ${macdColor}`}>{macdLabel}</td>
+                      <td className={`px-4 py-3 text-xs text-center font-medium ${ma20Color}`}>{ma20Label}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${rec.color}`}>
                           {rec.action}
