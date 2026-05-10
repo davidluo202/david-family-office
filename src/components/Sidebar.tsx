@@ -3,27 +3,30 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
+import { useLanguage } from '@/lib/i18n';
+import { APP_VERSION } from '@/lib/version';
 import { loadConfig } from '@/lib/storage';
 import { useEffect, useState } from 'react';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', labelZh: '仪表盘', icon: '\u{1F3E0}' },
-  { href: '/family', label: 'Family Members', labelZh: '家庭成员', icon: '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}' },
-  { href: '/wealth', label: 'Assets & Liabilities', labelZh: '资产负债', icon: '\u{1F4B0}' },
-  { href: '/portfolio', label: 'Portfolio', labelZh: '投资持仓', icon: '\u{1F4C8}' },
-  { href: '/analytics', label: 'Analytics', labelZh: '趋势分析', icon: '\u{1F4CA}' },
-  { href: '/expenses', label: 'Income & Expenses', labelZh: '收支管理', icon: '\u{1F4B3}' },
-  { href: '/accounts', label: 'Bank Accounts', labelZh: '银行账户', icon: '\u{1F3E6}' },
-  { href: '/integrations', label: 'Bank & Tax Data', labelZh: '银行/税表接口', icon: '\u{1F50C}' },
-  { href: '/goals', label: 'Goals', labelZh: '目标', icon: '\u{1F3AF}' },
-  { href: '/advisor', label: 'AI Advisor', labelZh: 'AI 顾问', icon: '\u{1F916}' },
-  { href: '/settings', label: 'Settings', labelZh: '设置', icon: '\u2699\uFE0F' },
+  { href: '/', tKey: 'nav.dashboard', label: 'Dashboard', labelZh: '仪表盘', icon: '\u{1F3E0}' },
+  { href: '/family', tKey: 'nav.family', label: 'Family Members', labelZh: '家庭成员', icon: '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}' },
+  { href: '/wealth', tKey: 'nav.wealth', label: 'Assets & Liabilities', labelZh: '资产负债', icon: '\u{1F4B0}' },
+  { href: '/portfolio', tKey: 'nav.portfolio', label: 'Portfolio', labelZh: '投资持仓', icon: '\u{1F4C8}' },
+  { href: '/analytics', tKey: 'nav.analytics', label: 'Analytics', labelZh: '趋势分析', icon: '\u{1F4CA}' },
+  { href: '/expenses', tKey: 'nav.expenses', label: 'Income & Expenses', labelZh: '收支管理', icon: '\u{1F4B3}' },
+  { href: '/accounts', tKey: 'nav.accounts', label: 'Bank Accounts', labelZh: '银行账户', icon: '\u{1F3E6}' },
+  { href: '/integrations', tKey: 'nav.integrations', label: 'Bank & Tax Data', labelZh: '银行/税表接口', icon: '\u{1F50C}' },
+  { href: '/goals', tKey: 'nav.goals', label: 'Goals', labelZh: '目标', icon: '\u{1F3AF}' },
+  { href: '/advisor', tKey: 'nav.advisor', label: 'AI Advisor', labelZh: 'AI 顾问', icon: '\u{1F916}' },
+  { href: '/settings', tKey: 'nav.settings', label: 'Settings', labelZh: '设置', icon: '\u2699\uFE0F' },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { session, logout } = useAuth();
+  const { lang, setLang, t } = useLanguage();
   const [familyName, setFamilyName] = useState('Mini Family Office');
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -75,13 +78,23 @@ export default function Sidebar() {
             >
               <span className="text-lg">{item.icon}</span>
               <div>
-                <span className="font-medium block leading-tight">{item.labelZh}</span>
-                <span className="text-[10px] text-slate-500 leading-tight">{item.label}</span>
+                <span className="font-medium block leading-tight">{lang === 'zh' ? item.labelZh : item.label}</span>
+                <span className="text-[10px] text-slate-500 leading-tight">{lang === 'zh' ? item.label : item.labelZh}</span>
               </div>
             </Link>
           );
         })}
       </nav>
+      <div className="px-6 py-3 border-t border-slate-700 flex items-center justify-between">
+        <button
+          onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
+          className="px-2.5 py-1 rounded text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+          title="Switch language"
+        >
+          {lang === 'zh' ? 'EN' : 'CN'}
+        </button>
+        <span className="text-[10px] text-slate-500">v{APP_VERSION}</span>
+      </div>
       <div className="px-6 py-4 border-t border-slate-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -90,7 +103,7 @@ export default function Sidebar() {
             </div>
             <div>
               <p className="text-sm font-medium">
-                {session?.memberName || (session?.role === 'admin' ? '管理员' : '成员')}
+                {session?.memberName || (session?.role === 'admin' ? t('common.admin') : t('common.member'))}
               </p>
               <p className="text-xs text-slate-400 truncate max-w-[100px]">
                 {session?.email || (session?.role === 'admin' ? 'Admin' : 'Member')}
@@ -100,9 +113,9 @@ export default function Sidebar() {
           <button
             onClick={handleLogout}
             className="text-xs text-slate-400 hover:text-white transition-colors"
-            title="退出 / Logout"
+            title={t('common.logout')}
           >
-            退出
+            {t('common.logout')}
           </button>
         </div>
       </div>
