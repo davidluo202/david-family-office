@@ -113,6 +113,50 @@ export function verifyEmailLogin(email: string, password: string): AppUser | nul
   return user;
 }
 
+// Check if email belongs to a registered family member (in mfo_members)
+export function getFamilyMemberByEmail(email: string): { name: string; nameZh: string } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('mfo_members');
+    if (!raw) return null;
+    const members = JSON.parse(raw) as Array<{ email?: string; name: string; nameZh: string }>;
+    const found = members.find((m) => m.email && m.email.toLowerCase() === email.toLowerCase());
+    return found ? { name: found.name, nameZh: found.nameZh } : null;
+  } catch {
+    return null;
+  }
+}
+
+// Verify family member password (shared password set during setup)
+export function verifyMemberPassword(input: string): boolean {
+  try {
+    const raw = localStorage.getItem(CONFIG_KEY);
+    if (!raw) return false;
+    const config = JSON.parse(raw);
+    const inputHash = simpleHash(input);
+    // Check member password first, fall back to admin password
+    return inputHash === (config.memberPasswordHash || config.passwordHash);
+  } catch {
+    return false;
+  }
+}
+
+// Register a family member who verified with member password
+export function registerFamilyMember(email: string, password: string, name: string): AppUser {
+  const users = loadUsers();
+  const user: AppUser = {
+    id: crypto.randomUUID(),
+    email: email.trim().toLowerCase(),
+    passwordHash: simpleHash(password),
+    role: 'member',
+    status: 'active', // Auto-active since verified via member password
+    name,
+    createdAt: new Date().toISOString(),
+  };
+  saveUsers([...users, user]);
+  return user;
+}
+
 // Legacy password verify (kept for backward compat during setup)
 export function verifyPassword(input: string, role: UserRole): boolean {
   try {
