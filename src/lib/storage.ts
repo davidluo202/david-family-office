@@ -8,6 +8,7 @@ import type {
   Liability,
   BankAccount,
   Goal,
+  RecurringBill,
 } from './types';
 
 const KEYS = {
@@ -18,6 +19,7 @@ const KEYS = {
   liabilities: 'mfo_liabilities',
   accounts: 'mfo_accounts',
   goals: 'mfo_goals',
+  bills: 'mfo_bills',
 };
 
 function load<T>(key: string, fallback: T): T {
@@ -115,6 +117,10 @@ export function exportAllData(): FamilyData {
     goals: loadGoals(),
   };
 }
+
+// Bills
+export function loadBills(): RecurringBill[] { return load<RecurringBill[]>(KEYS.bills, []); }
+export function saveBills(bills: RecurringBill[]): void { save(KEYS.bills, bills); }
 
 // Import all data
 export function importAllData(data: FamilyData): void {

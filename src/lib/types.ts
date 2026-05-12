@@ -116,6 +116,28 @@ export interface Goal {
   priority: 'high' | 'medium' | 'low';
 }
 
+export type BillCategory = 'credit_card' | 'utility' | 'property_tax' | 'home_insurance' | 'life_insurance' | 'subscription' | 'other';
+
+export interface RecurringBill {
+  id: string;
+  name: string;
+  nameZh: string;
+  category: BillCategory;
+  amount: number;
+  currency: string;
+  frequency: 'monthly' | 'quarterly' | 'semi_annual' | 'annual';
+  dueDay: number; // day of month (1-31)
+  dueMonth?: number; // for non-monthly (1-12)
+  nextDueDate: string; // YYYY-MM-DD
+  autopay: boolean;
+  payee: string;
+  notes: string;
+  emailSource?: string; // which email detected this bill
+  lastPaidDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FamilyData {
   config: FamilyConfig;
   members: FamilyMember[];
